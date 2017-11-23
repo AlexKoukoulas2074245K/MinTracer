@@ -10,28 +10,65 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <memory>
+#include <vector>
 
 #include "typedefs.h"
 #include "math.h"
 
 struct Material
 {
-	vec3<f32> color;
+	vec3<f32> diffuse;
+	vec3<f32> specular;
 };
 
 struct Sphere
 {
 	f32 radius;
 	vec3<f32> center;
+	uint32 matIndex;
 };
 
 struct Ray
 {
 	vec3<f32> direction;
 	vec3<f32> origin;
-	f32 t;
 };
 
+struct Light
+{
+	vec3<f32> position;
+	vec3<f32> color;
+};
+
+struct Scene
+{
+	Sphere spheres[2];
+	Light lights[1];
+	Material materials[3];
+};
+
+struct HitInfo
+{
+	const bool hit;
+	const vec3<f32> position;
+	const vec3<f32> normal;
+	const uint8 surfaceMatIndex;
+	const f32 t;
+
+	HitInfo(const bool hit, 
+		    const vec3<f32>& position, 
+		    const vec3<f32>& normal,
+		    const uint8& surfaceMatIndex,
+		    const f32 t)
+		: hit(hit)
+		, position(position)
+		, normal(normal)
+		, surfaceMatIndex(surfaceMatIndex)
+		, t(t)
+	{
+	}
+};
 
 #pragma pack(push, 1)
 struct BitmapHeader
@@ -81,37 +118,72 @@ void writeBMP(const std::string& fileName, uint32* const outputPixels, const sin
 	outputFile.close();
 }
 
-vec3<f32> trace(const Ray& ray)
+std::unique_ptr<HitInfo> raySphereIntersectionTest(const Ray& ray, const Sphere& sphere)
 {
-	Sphere s;
-	s.radius = 2.0f;
-	s.center = vec3<f32>(0.0f, 0.0f, -5.0f);
+	const auto toRay = ray.origin - sphere.center;
 
-	f32 a = ray.direction.dot(ray.direction);
-	f32 b = (ray.direction * 2.0f).dot(ray.origin - s.center);
-	f32 c = (ray.origin - s.center).length2() - s.radius * s.radius;
-	f32 det = b * b - 4 * a * c;
+	const auto a = ray.direction.dot(ray.direction);
+	const auto b = 2.0f * ray.direction.dot(toRay);
+	const auto c = toRay.dot(toRay) - sphere.radius * sphere.radius;
+	const auto det = b * b - 4 * a * c;
 
-	f32 minT = (-b - sqrtf(det))/2 * a;
-	f32 maxT = (-b + sqrtf(det))/2 * a;
-
-	vec3<f32> hitPos = ray.origin + ray.direction * minT;
-
-	if (minT > 0.0f || maxT > 0.0f)
+	if (det > 0.0f)
 	{
-		return vec3<f32>(0.0f, 0.0f, 0.0f);
+		f32 minT = (-b - sqrtf(det)) / 2 * a;
+		f32 maxT = (-b + sqrtf(det)) / 2 * a;
+
+		if (minT > 0.0f && minT < 10.0f)
+		{
+			vec3<f32> hitPos = ray.origin + ray.direction * minT;
+			return std::make_unique<HitInfo>(true, hitPos, (hitPos - sphere.center).normalize(), sphere.matIndex, minT);
+		}
+		else if (maxT > 0.0f && maxT < 10.0f)
+		{
+			vec3<f32> hitPos = ray.origin + ray.direction * maxT;
+			return std::make_unique<HitInfo>(true, hitPos, (hitPos - sphere.center).normalize(), sphere.matIndex, maxT);
+		}		
 	}
 	
-	return vec3<f32>(1.0f, 1.0f, 1.0f);
+	return std::make_unique<HitInfo>(false, vec3<f32>(), vec3<f32>(), 0, 0.0f);
+}
+
+vec3<f32> trace(const Ray& ray, const Scene& scene)
+{
+	vec3<f32> fragment;
+
+	for (auto sphere: scene.spheres)
+	{
+		const auto hitInfo = raySphereIntersectionTest(ray, sphere);
+
+		if (hitInfo->hit)
+		{
+			vec3<f32> hitToLight = scene.lights[0].position - hitInfo->position;
+			vec3<f32> lightDir = hitToLight.normalize();
+			f32 diffuseTerm = max(0.0f, lightDir.dot(hitInfo->normal)); 
+			return (scene.materials[hitInfo->surfaceMatIndex].diffuse * scene.lights[0].color) * diffuseTerm;
+		}
+	}
+
+	return fragment;
 }
 
 void render(uint32* const pixels, const sint32 width, const sint32 height)
 {
 	const auto invWidth = 1.0f/width;
 	const auto invHeight = 1.0f/height;
-	const auto fov = PI/4.0f;
+	const auto fov = PI/3.0f;
 	const auto aspect = static_cast<f32>(width)/height;
-	const auto angle = tan(PI * 0.5f * fov);
+	const auto angle = tan(fov * 0.5f);
+	
+	Scene scene = {};
+	scene.lights[0] = Light{vec3<f32>(0.0f, 0.0f, -1.0f), vec3<f32>(0.7f, 0.7f, 0.7f)};
+
+	scene.materials[0] = Material{vec3<f32>(0.0f, 0.0f, 0.0f), vec3<f32>(0.0f, 0.0f, 0.0f)};
+	scene.materials[1] = Material{vec3<f32>(0.9f, 0.3f, 0.3f), vec3<f32>(0.9f, 0.3f, 0.3f)};
+	scene.materials[2] = Material{vec3<f32>(0.3f, 0.5f, 0.9f), vec3<f32>(0.3f, 0.5f, 0.9f)};
+
+	scene.spheres[0] = Sphere{2.0f, vec3<f32>(0.0f, 0.0f, -10.0f), 1};
+	scene.spheres[1] = Sphere{3.7f, vec3<f32>(3.0f, 0.0f, -4.5f), 2};
 
 	for (auto y = 0; y < height; ++y)
 	{
@@ -122,23 +194,28 @@ void render(uint32* const pixels, const sint32 width, const sint32 height)
 			
 			vec3<f32> rayDirection(xx, yy, -1.0f);
 			rayDirection.normalize();
-			Ray ray;
-			ray.direction = rayDirection;			
+			Ray ray = Ray{rayDirection, vec3<f32>()};
 
-			const auto pixel = trace(ray);
-			pixels[y * width + x] = 0xFF000000 | 
-				uint32(min(1.0f, pixel.x) * 255) << 16 |
-			    uint32(min(1.0f, pixel.y) * 255) << 8 |
-				uint32(min(1.0f, pixel.z) * 255);
+			const auto pixel = trace(ray, scene);
+			pixels[y * width + x] = vec3toARGB(pixel);
 		}
+
+		const auto percComplete = uint32((y / static_cast<f32>(height)) * 100);
+
+		if (percComplete % 10 == 0 && y % (height/10) == 0)
+		{
+			std::cout << "Tracing " << percComplete << "% complete" << std::endl;
+		}		
 	}
+
+	std::cout << "Tracing 100% complete" << std::endl;
 }
 
 int main()
 {
 	// Output parameters
-	const auto outputWidth = 1280;
-	const auto outputHeight = 720;
+	const auto outputWidth = 640;
+	const auto outputHeight = 480;
 	const auto outputFileName = "output.bmp";
 
 	auto* outputPixels = new uint32[outputHeight * outputWidth];
@@ -146,12 +223,13 @@ int main()
 	render(outputPixels, outputWidth, outputHeight);
 	
 	writeBMP(outputFileName, outputPixels, outputWidth, outputHeight);
+	
+	std::cout << "Finished writing output to file.. " << std::endl;
 
 	// Cleanup
 	delete[] outputPixels;
 
 	// Attempt to open result image 
 	system(outputFileName);
-
-	std::cout << "Finished writing output to file.. " << std::endl;	
+	
 }
