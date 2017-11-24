@@ -4,7 +4,7 @@
 /**********************************************************************/
 
 #if defined(DEBUG) || defined(_DEBUG)
-#include <vld.h>	
+
 #endif
 
 #include <fstream>
@@ -140,14 +140,14 @@ void writeBMP(const std::string& fileName, uint32* const outputPixels, const sin
 	
 	BitmapHeader bmh = {};
 	bmh.fileType     = 0x4D42;
-	bmh.fileSize     = sizeof(BitmapHeader) + outputPixelsSize;
+	bmh.fileSize     = sizeof(BitmapHeader) + static_cast<uint32>(outputPixelsSize);
 	bmh.bitmapOffset = sizeof(BitmapHeader);
 	bmh.size         = sizeof(BitmapHeader) - 14;
 	bmh.width        = imageWidth;
 	bmh.height       = -imageHeight;
 	bmh.planes       = 1;
 	bmh.bitsPerPixel = 32;
-	bmh.sizeOfBitmap = outputPixelsSize;
+	bmh.sizeOfBitmap = static_cast<uint32>(outputPixelsSize);
 
 	std::ofstream outputFile(fileName, std::ios::binary | std::ios::out);
 
@@ -187,18 +187,18 @@ std::unique_ptr<HitInfo> raySphereIntersectionTest(const Ray& ray, const Sphere&
 
 	if (det > 0.0f)
 	{
-		f32 minT = (-b - sqrtf(det)) / 2 * a;
-		f32 maxT = (-b + sqrtf(det)) / 2 * a;
+		const auto minT = (-b - sqrtf(det)) / 2 * a;
+		const auto maxT = (-b + sqrtf(det)) / 2 * a;
 
-		vec3<f32> hitPos = ray.origin + ray.direction * minT;
-		vec3<f32> normal = (hitPos - sphere.center).normalize();
+		const auto hitPos = ray.origin + ray.direction * (minT < maxT ? minT: maxT);
+		auto normal = (hitPos - sphere.center).normalize();
 
 		if (toRay.length() < sphere.radius + 0.001f)
 		{
 			normal = -normal;
 		}
 
-		return std::make_unique<HitInfo>(true, hitPos, (hitPos - sphere.center).normalize(), sphere.matIndex, minT);
+		return std::make_unique<HitInfo>(true, hitPos, (hitPos - sphere.center).normalize(), sphere.matIndex, minT < maxT ? minT : maxT);
 	}
 	
 	return std::make_unique<HitInfo>(false, vec3<f32>(), vec3<f32>(), 0, 1000.0f);
@@ -207,7 +207,7 @@ std::unique_ptr<HitInfo> raySphereIntersectionTest(const Ray& ray, const Sphere&
 std::unique_ptr<HitInfo> intersectScene(const Scene& scene, const Ray& ray)
 {
 	std::unique_ptr<HitInfo> closestHitInfo = std::make_unique<HitInfo>(false, vec3<f32>(), vec3<f32>(), 0, 1000.0f);
-
+	
 	for (auto sphere : scene.spheres)
 	{
 		auto hitInfo = raySphereIntersectionTest(ray, sphere);
@@ -235,19 +235,19 @@ vec3<f32> shade(const Scene& scene, const Ray& ray, const Light& light)
 {
 	vec3<f32> colorAccum;
 	
-	auto hitInfo = intersectScene(scene, ray);
+	const auto hitInfo = intersectScene(scene, ray);
 	auto hitToLight = light.position - hitInfo->position;
 	const auto lightDir = hitToLight.normalize();
 	const auto viewDir = (hitInfo->position - ray.origin).normalize();
 	const auto reflDir = (viewDir - hitInfo->normal * viewDir.dot(hitInfo->normal) * 2.0f).normalize();
 
 	const auto diffuseTerm = max(0.0f, lightDir.dot(hitInfo->normal));
-	const auto specularTerm = powf(max(0.0f, lightDir.dot(reflDir)), scene.materials[hitInfo->surfaceMatIndex].glossiness);
-	colorAccum += (scene.materials[hitInfo->surfaceMatIndex].diffuse * light.color) * diffuseTerm;
-	colorAccum += (scene.materials[hitInfo->surfaceMatIndex].specular * light.color) * specularTerm;	
+	const auto& material = scene.materials[hitInfo->surfaceMatIndex];
+	const auto specularTerm = powf(max(0.0f, lightDir.dot(reflDir)), material.glossiness);
+	colorAccum += (material.diffuse * light.color) * diffuseTerm;
+	colorAccum += (material.specular * light.color) * specularTerm;	
 
 	auto visibility = 1.0f;
-
 	auto lightHitInfo = intersectScene(scene, Ray(hitToLight, hitInfo->position));
 
 	if (lightHitInfo->hit)
@@ -263,7 +263,7 @@ vec3<f32> shade(const Scene& scene, const Ray& ray, const Light& light)
 
 vec3<f32> trace(const Ray& ray, const Scene& scene)
 {
-	vec3<f32> fragment = vec3<f32>(0.1f, 0.1f, 0.1f);
+	auto fragment = vec3<f32>(0.1f, 0.1f, 0.1f);
 
 	for (auto light : scene.lights)
 	{
@@ -283,21 +283,23 @@ void render(uint32* const pixels, const sint32 width, const sint32 height)
 	
 	Scene scene = {};
 	
-	//scene.lights.emplace_back(vec3<f32>(0.0f, 5.0f, -1.0f), vec3<f32>(0.7f, 0.7f, 0.7f));
-	scene.lights.emplace_back(vec3<f32>(-4.0f, 10.0f, -1.0f), vec3<f32>(0.7f, 0.7f, 0.7f));
+	//scene.lights.emplace_back(vec3<f32>(-2.0f, -1.0f, -1.0f), vec3<f32>(0.7f, 0.7f, 0.7f));
+	//scene.lights.emplace_back(vec3<f32>(-4.0f, 10.0f, -1.0f), vec3<f32>(0.7f, 0.7f, 0.7f));
+	scene.lights.emplace_back(vec3<f32>(-8.0f, 4.0f, -8.0f), vec3<f32>(0.7f, 0.7f, 0.7f));
 
 	scene.materials.emplace_back(vec3<f32>(0.0f, 0.0f, 0.0f), vec3<f32>(0.0f, 0.0f, 0.0f), 0.0f);
 	scene.materials.emplace_back(vec3<f32>(0.9f, 0.3f, 0.3f), vec3<f32>(0.9f, 0.3f, 0.3f), 32.0f);
 	scene.materials.emplace_back(vec3<f32>(0.3f, 0.5f, 0.9f), vec3<f32>(0.3f, 0.5f, 0.9f), 64.0f);
 	scene.materials.emplace_back(vec3<f32>(0.5f, 0.5f, 0.5f), vec3<f32>(0.5f, 0.5f, 0.5f), 1.0f);
-	scene.materials.emplace_back(vec3<f32>(0.0f, 0.0f, 0.9f), vec3<f32>(0.0f, 0.0f, 0.09f), 85.0f);
+	scene.materials.emplace_back(vec3<f32>(0.3f, 0.3f, 0.9f), vec3<f32>(0.3f, 0.3f, 0.09f), 24.0f);
 
-	scene.spheres.emplace_back(2.0f, vec3<f32>(-1.0f, 0.0f, -20.0f), 1);
-	scene.spheres.emplace_back(1.7f, vec3<f32>(2.0f, 0.0f, -18.0f), 2);
-	scene.spheres.emplace_back(0.5f, vec3<f32>(0.0f, 0.0f, -10.0f), 4);
+	scene.spheres.emplace_back(2.0f, vec3<f32>(-1.0f, 2.0f, -9.0f), 1);
+	scene.spheres.emplace_back(1.7f, vec3<f32>(2.3f, 0.0f, -9.0f), 2);
+	scene.spheres.emplace_back(0.5f, vec3<f32>(0.0f, 0.0f, -5.0f), 4);
 
-	scene.planes.emplace_back(vec3<f32>(0.0f, 1.0f, 0.0f), 100.0f, 3);	
-	scene.planes.emplace_back(vec3<f32>(0.0f, 0.0f, 1.0f), 100.0f, 3);
+	scene.planes.emplace_back(vec3<f32>(0.0f, 0.0f, 1.0f), 40.0f, 3);
+	scene.planes.emplace_back(vec3<f32>(0.0f, 1.0f, 0.0f), 2.0f, 3);	
+	scene.planes.emplace_back(vec3<f32>(-1.0f, 0.0f, 0.0f), 4.0f, 3);
 
 	for (auto y = 0; y < height; ++y)
 	{
@@ -328,8 +330,8 @@ void render(uint32* const pixels, const sint32 width, const sint32 height)
 int main()
 {
 	// Output parameters
-	const auto outputWidth = 480;
-	const auto outputHeight = 320;
+	const auto outputWidth = 840;
+	const auto outputHeight = 680;
 	const auto outputFileName = "output.bmp";
 
 	auto* outputPixels = new uint32[outputHeight * outputWidth];
