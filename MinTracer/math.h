@@ -35,7 +35,7 @@ public:
 	vec3<T> operator * (const T& f) const { return vec3<T>(x * f, y * f, z * f); }
 	vec3<T> operator * (const vec3<T>& v) const { return vec3<T>(x * v.x, y * v.y, z * v.z); }
 	T dot(const vec3<T>& v) const { return x * v.x + y * v.y + z * v.z; }
-	vec3<T> cross(const vec3<T>& v) const { return vec3<T>(y * v.z - z * v.y, z * v.x - v * v.z, x * v.y - y * v.x); }
+	vec3<T> cross(const vec3<T>& v) const { return vec3<T>(y * v.z - z * v.y, z * v.x - x * v.z, x * v.y - y * v.x); }
 	vec3<T> operator - (const vec3<T>& v) const { return vec3<T>(x - v.x, y - v.y, z - v.z); }
 	vec3<T> operator + (const vec3<T>& v) const { return vec3<T>(x + v.x, y + v.y, z + v.z); }
 	vec3<T>& operator += (const vec3<T>& v) { x += v.x, y += v.y, z += v.z; return *this; }

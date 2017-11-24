@@ -20,6 +20,14 @@ struct Material
 {
 	vec3<f32> diffuse;
 	vec3<f32> specular;
+	f32 glossiness;
+
+	Material(const vec3<f32>& diffuse, const vec3<f32>& specular, f32 glossiness)
+		: diffuse(diffuse)
+		, specular(specular)
+		, glossiness(glossiness)
+	{
+	}
 };
 
 struct Sphere
@@ -27,25 +35,59 @@ struct Sphere
 	f32 radius;
 	vec3<f32> center;
 	uint32 matIndex;
+
+	Sphere(const f32 radius, const vec3<f32>& center, const uint32 matIndex)
+		: radius(radius)
+		, center(center)
+		, matIndex(matIndex)
+	{
+	}
+};
+
+struct Plane
+{
+	vec3<f32> normal;
+	f32 d;
+	uint32 matIndex;
+
+	Plane(const vec3<f32>& normal, const f32 d, const uint32 matIndex)
+		: normal(normal)
+		, d(d)
+		, matIndex(matIndex)
+	{
+	}
 };
 
 struct Ray
 {
 	vec3<f32> direction;
 	vec3<f32> origin;
+
+	Ray(const vec3<f32>& direction, const vec3<f32>& origin)
+		: direction(direction)
+		, origin(origin)
+	{
+	}
 };
 
 struct Light
 {
 	vec3<f32> position;
 	vec3<f32> color;
+
+	Light(const vec3<f32>& position, const vec3<f32>& color)
+		: position(position)
+		, color(color)
+	{
+	}
 };
 
 struct Scene
 {
-	Sphere spheres[2];
-	Light lights[1];
-	Material materials[3];
+	std::vector<Sphere> spheres;
+	std::vector<Light> lights;
+	std::vector<Material> materials;
+	std::vector<Plane> planes;
 };
 
 struct HitInfo
@@ -118,6 +160,22 @@ void writeBMP(const std::string& fileName, uint32* const outputPixels, const sin
 	outputFile.close();
 }
 
+std::unique_ptr<HitInfo> rayPlaneIntersectionTest(const Ray& ray, const Plane& plane)
+{
+	f32 denom = (-ray.direction).dot(plane.normal);
+
+	if (denom > 1e-6f)
+	{
+		f32 t = (plane.d - (plane.normal.dot(ray.origin)))/denom;
+
+		vec3<f32> hitPos = ray.origin + ray.direction * t;
+		
+		return std::make_unique<HitInfo>(true, hitPos, plane.normal, plane.matIndex, t);
+	}
+
+	return std::make_unique<HitInfo>(false, vec3<f32>(), vec3<f32>(), 0, 1000.0f);
+}
+
 std::unique_ptr<HitInfo> raySphereIntersectionTest(const Ray& ray, const Sphere& sphere)
 {
 	const auto toRay = ray.origin - sphere.center;
@@ -132,37 +190,85 @@ std::unique_ptr<HitInfo> raySphereIntersectionTest(const Ray& ray, const Sphere&
 		f32 minT = (-b - sqrtf(det)) / 2 * a;
 		f32 maxT = (-b + sqrtf(det)) / 2 * a;
 
-		if (minT > 0.0f && minT < 10.0f)
+		vec3<f32> hitPos = ray.origin + ray.direction * minT;
+		vec3<f32> normal = (hitPos - sphere.center).normalize();
+
+		if (toRay.length() < sphere.radius + 0.001f)
 		{
-			vec3<f32> hitPos = ray.origin + ray.direction * minT;
-			return std::make_unique<HitInfo>(true, hitPos, (hitPos - sphere.center).normalize(), sphere.matIndex, minT);
+			normal = -normal;
 		}
-		else if (maxT > 0.0f && maxT < 10.0f)
-		{
-			vec3<f32> hitPos = ray.origin + ray.direction * maxT;
-			return std::make_unique<HitInfo>(true, hitPos, (hitPos - sphere.center).normalize(), sphere.matIndex, maxT);
-		}		
+
+		return std::make_unique<HitInfo>(true, hitPos, (hitPos - sphere.center).normalize(), sphere.matIndex, minT);
 	}
 	
-	return std::make_unique<HitInfo>(false, vec3<f32>(), vec3<f32>(), 0, 0.0f);
+	return std::make_unique<HitInfo>(false, vec3<f32>(), vec3<f32>(), 0, 1000.0f);
+}
+
+std::unique_ptr<HitInfo> intersectScene(const Scene& scene, const Ray& ray)
+{
+	std::unique_ptr<HitInfo> closestHitInfo = std::make_unique<HitInfo>(false, vec3<f32>(), vec3<f32>(), 0, 1000.0f);
+
+	for (auto sphere : scene.spheres)
+	{
+		auto hitInfo = raySphereIntersectionTest(ray, sphere);
+
+		if (hitInfo->hit && hitInfo->t < closestHitInfo->t)
+		{			
+			closestHitInfo = std::move(hitInfo);
+		}
+	}
+
+	for (auto plane : scene.planes)
+	{
+		auto hitInfo = rayPlaneIntersectionTest(ray, plane);
+
+		if (hitInfo->hit && hitInfo->t < closestHitInfo->t)
+		{			
+			closestHitInfo = std::move(hitInfo);
+		}
+	}
+
+	return closestHitInfo;
+}
+
+vec3<f32> shade(const Scene& scene, const Ray& ray, const Light& light)
+{
+	vec3<f32> colorAccum;
+	
+	auto hitInfo = intersectScene(scene, ray);
+	auto hitToLight = light.position - hitInfo->position;
+	const auto lightDir = hitToLight.normalize();
+	const auto viewDir = (hitInfo->position - ray.origin).normalize();
+	const auto reflDir = (viewDir - hitInfo->normal * viewDir.dot(hitInfo->normal) * 2.0f).normalize();
+
+	const auto diffuseTerm = max(0.0f, lightDir.dot(hitInfo->normal));
+	const auto specularTerm = powf(max(0.0f, lightDir.dot(reflDir)), scene.materials[hitInfo->surfaceMatIndex].glossiness);
+	colorAccum += (scene.materials[hitInfo->surfaceMatIndex].diffuse * light.color) * diffuseTerm;
+	colorAccum += (scene.materials[hitInfo->surfaceMatIndex].specular * light.color) * specularTerm;	
+
+	auto visibility = 1.0f;
+
+	auto lightHitInfo = intersectScene(scene, Ray(hitToLight, hitInfo->position));
+
+	if (lightHitInfo->hit)
+	{
+		const auto originalHitToLightMag = (light.position - hitInfo->position).length();
+		const auto reverseIntersectionHitToLightMag = (light.position - lightHitInfo->position).length();
+
+		visibility = (originalHitToLightMag - reverseIntersectionHitToLightMag) > 0.001f ? 0.0f : 1.0f;		
+	}
+		
+	return colorAccum * visibility;
 }
 
 vec3<f32> trace(const Ray& ray, const Scene& scene)
 {
-	vec3<f32> fragment;
+	vec3<f32> fragment = vec3<f32>(0.1f, 0.1f, 0.1f);
 
-	for (auto sphere: scene.spheres)
+	for (auto light : scene.lights)
 	{
-		const auto hitInfo = raySphereIntersectionTest(ray, sphere);
-
-		if (hitInfo->hit)
-		{
-			vec3<f32> hitToLight = scene.lights[0].position - hitInfo->position;
-			vec3<f32> lightDir = hitToLight.normalize();
-			f32 diffuseTerm = max(0.0f, lightDir.dot(hitInfo->normal)); 
-			return (scene.materials[hitInfo->surfaceMatIndex].diffuse * scene.lights[0].color) * diffuseTerm;
-		}
-	}
+		fragment += shade(scene, ray, light);
+	}	
 
 	return fragment;
 }
@@ -176,14 +282,22 @@ void render(uint32* const pixels, const sint32 width, const sint32 height)
 	const auto angle = tan(fov * 0.5f);
 	
 	Scene scene = {};
-	scene.lights[0] = Light{vec3<f32>(0.0f, 0.0f, -1.0f), vec3<f32>(0.7f, 0.7f, 0.7f)};
+	
+	//scene.lights.emplace_back(vec3<f32>(0.0f, 5.0f, -1.0f), vec3<f32>(0.7f, 0.7f, 0.7f));
+	scene.lights.emplace_back(vec3<f32>(-4.0f, 10.0f, -1.0f), vec3<f32>(0.7f, 0.7f, 0.7f));
 
-	scene.materials[0] = Material{vec3<f32>(0.0f, 0.0f, 0.0f), vec3<f32>(0.0f, 0.0f, 0.0f)};
-	scene.materials[1] = Material{vec3<f32>(0.9f, 0.3f, 0.3f), vec3<f32>(0.9f, 0.3f, 0.3f)};
-	scene.materials[2] = Material{vec3<f32>(0.3f, 0.5f, 0.9f), vec3<f32>(0.3f, 0.5f, 0.9f)};
+	scene.materials.emplace_back(vec3<f32>(0.0f, 0.0f, 0.0f), vec3<f32>(0.0f, 0.0f, 0.0f), 0.0f);
+	scene.materials.emplace_back(vec3<f32>(0.9f, 0.3f, 0.3f), vec3<f32>(0.9f, 0.3f, 0.3f), 32.0f);
+	scene.materials.emplace_back(vec3<f32>(0.3f, 0.5f, 0.9f), vec3<f32>(0.3f, 0.5f, 0.9f), 64.0f);
+	scene.materials.emplace_back(vec3<f32>(0.5f, 0.5f, 0.5f), vec3<f32>(0.5f, 0.5f, 0.5f), 1.0f);
+	scene.materials.emplace_back(vec3<f32>(0.0f, 0.0f, 0.9f), vec3<f32>(0.0f, 0.0f, 0.09f), 85.0f);
 
-	scene.spheres[0] = Sphere{2.0f, vec3<f32>(0.0f, 0.0f, -10.0f), 1};
-	scene.spheres[1] = Sphere{3.7f, vec3<f32>(3.0f, 0.0f, -4.5f), 2};
+	scene.spheres.emplace_back(2.0f, vec3<f32>(-1.0f, 0.0f, -20.0f), 1);
+	scene.spheres.emplace_back(1.7f, vec3<f32>(2.0f, 0.0f, -18.0f), 2);
+	scene.spheres.emplace_back(0.5f, vec3<f32>(0.0f, 0.0f, -10.0f), 4);
+
+	scene.planes.emplace_back(vec3<f32>(0.0f, 1.0f, 0.0f), 100.0f, 3);	
+	scene.planes.emplace_back(vec3<f32>(0.0f, 0.0f, 1.0f), 100.0f, 3);
 
 	for (auto y = 0; y < height; ++y)
 	{
@@ -194,7 +308,7 @@ void render(uint32* const pixels, const sint32 width, const sint32 height)
 			
 			vec3<f32> rayDirection(xx, yy, -1.0f);
 			rayDirection.normalize();
-			Ray ray = Ray{rayDirection, vec3<f32>()};
+			Ray ray(rayDirection, vec3<f32>());
 
 			const auto pixel = trace(ray, scene);
 			pixels[y * width + x] = vec3toARGB(pixel);
@@ -214,8 +328,8 @@ void render(uint32* const pixels, const sint32 width, const sint32 height)
 int main()
 {
 	// Output parameters
-	const auto outputWidth = 640;
-	const auto outputHeight = 480;
+	const auto outputWidth = 480;
+	const auto outputHeight = 320;
 	const auto outputFileName = "output.bmp";
 
 	auto* outputPixels = new uint32[outputHeight * outputWidth];
