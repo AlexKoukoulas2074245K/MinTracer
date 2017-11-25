@@ -16,14 +16,19 @@
 #include "typedefs.h"
 #include "math.h"
 
+static const f32 T_MIN = 0.01f;
+static const f32 T_MAX = 100.0f;
+
 struct Material
 {
+	vec3<f32> ambient;
 	vec3<f32> diffuse;
 	vec3<f32> specular;
 	f32 glossiness;
 
-	Material(const vec3<f32>& diffuse, const vec3<f32>& specular, f32 glossiness)
-		: diffuse(diffuse)
+	Material(const vec3<f32>& ambient, const vec3<f32>& diffuse, const vec3<f32>& specular, f32 glossiness)
+		: ambient(ambient)
+		, diffuse(diffuse)
 		, specular(specular)
 		, glossiness(glossiness)
 	{
@@ -164,7 +169,7 @@ std::unique_ptr<HitInfo> rayPlaneIntersectionTest(const Ray& ray, const Plane& p
 {
 	f32 denom = (-ray.direction).dot(plane.normal);
 
-	if (denom > 1e-6f)
+	if (denom > 0.0f)
 	{
 		f32 t = (plane.d - (plane.normal.dot(ray.origin)))/denom;
 
@@ -173,7 +178,7 @@ std::unique_ptr<HitInfo> rayPlaneIntersectionTest(const Ray& ray, const Plane& p
 		return std::make_unique<HitInfo>(true, hitPos, plane.normal, plane.matIndex, t);
 	}
 
-	return std::make_unique<HitInfo>(false, vec3<f32>(), vec3<f32>(), 0, 1000.0f);
+	return std::make_unique<HitInfo>(false, vec3<f32>(), vec3<f32>(), 0, T_MAX);
 }
 
 std::unique_ptr<HitInfo> raySphereIntersectionTest(const Ray& ray, const Sphere& sphere)
@@ -190,23 +195,27 @@ std::unique_ptr<HitInfo> raySphereIntersectionTest(const Ray& ray, const Sphere&
 		const auto minT = (-b - sqrtf(det)) / 2 * a;
 		const auto maxT = (-b + sqrtf(det)) / 2 * a;
 
-		const auto hitPos = ray.origin + ray.direction * (minT < maxT ? minT: maxT);
-		auto normal = (hitPos - sphere.center).normalize();
-
-		if (toRay.length() < sphere.radius + 0.001f)
+		if (minT > 0.0f)
 		{
-			normal = -normal;
-		}
+			const auto hitPos = ray.origin + ray.direction * (minT);
+			auto normal = (hitPos - sphere.center).normalize();
 
-		return std::make_unique<HitInfo>(true, hitPos, (hitPos - sphere.center).normalize(), sphere.matIndex, minT < maxT ? minT : maxT);
+			if (toRay.length() < sphere.radius + T_MIN)
+			{
+				normal = -normal;
+			}
+
+			return std::make_unique<HitInfo>(true, hitPos, (hitPos - sphere.center).normalize(), sphere.matIndex, minT);
+		}
+		
 	}
 	
-	return std::make_unique<HitInfo>(false, vec3<f32>(), vec3<f32>(), 0, 1000.0f);
+	return std::make_unique<HitInfo>(false, vec3<f32>(), vec3<f32>(), 0, T_MAX);
 }
 
 std::unique_ptr<HitInfo> intersectScene(const Scene& scene, const Ray& ray)
 {
-	std::unique_ptr<HitInfo> closestHitInfo = std::make_unique<HitInfo>(false, vec3<f32>(), vec3<f32>(), 0, 1000.0f);
+	std::unique_ptr<HitInfo> closestHitInfo = std::make_unique<HitInfo>(false, vec3<f32>(), vec3<f32>(), 0, T_MAX);
 	
 	for (auto sphere : scene.spheres)
 	{
@@ -236,34 +245,40 @@ vec3<f32> shade(const Scene& scene, const Ray& ray, const Light& light)
 	vec3<f32> colorAccum;
 	
 	const auto hitInfo = intersectScene(scene, ray);
-	auto hitToLight = light.position - hitInfo->position;
-	const auto lightDir = hitToLight.normalize();
-	const auto viewDir = (hitInfo->position - ray.origin).normalize();
-	const auto reflDir = (viewDir - hitInfo->normal * viewDir.dot(hitInfo->normal) * 2.0f).normalize();
 
-	const auto diffuseTerm = max(0.0f, lightDir.dot(hitInfo->normal));
-	const auto& material = scene.materials[hitInfo->surfaceMatIndex];
-	const auto specularTerm = powf(max(0.0f, lightDir.dot(reflDir)), material.glossiness);
-	colorAccum += (material.diffuse * light.color) * diffuseTerm;
-	colorAccum += (material.specular * light.color) * specularTerm;	
+	if (hitInfo->hit)
+	{		
+		auto hitToLight = light.position - hitInfo->position;
+		const auto lightDir = hitToLight.normalize();
+		const auto viewDir = (hitInfo->position - ray.origin).normalize();
+		const auto reflDir = (viewDir - hitInfo->normal * viewDir.dot(hitInfo->normal) * 2.0f).normalize();
 
-	auto visibility = 1.0f;
-	auto lightHitInfo = intersectScene(scene, Ray(hitToLight, hitInfo->position));
+		const auto diffuseTerm = max(0.0f, lightDir.dot(hitInfo->normal));
+		const auto& material = scene.materials[hitInfo->surfaceMatIndex];
+		const auto specularTerm = powf(max(0.0f, lightDir.dot(reflDir)), material.glossiness);
+		colorAccum += (material.diffuse * light.color) * diffuseTerm;
+		colorAccum += (material.specular * light.color) * specularTerm;	
 
-	if (lightHitInfo->hit)
-	{
-		const auto originalHitToLightMag = (light.position - hitInfo->position).length();
-		const auto reverseIntersectionHitToLightMag = (light.position - lightHitInfo->position).length();
+		auto visibility = 1.0f;
+		auto lightHitInfo = intersectScene(scene, Ray(hitToLight, hitInfo->position));
 
-		visibility = (originalHitToLightMag - reverseIntersectionHitToLightMag) > 0.001f ? 0.0f : 1.0f;		
+		if (lightHitInfo->hit)
+		{			
+			const auto originalHitToLightMag = (light.position - hitInfo->position).length();
+			const auto reverseIntersectionHitToLightMag = (light.position - lightHitInfo->position).length();
+
+			visibility = (originalHitToLightMag - reverseIntersectionHitToLightMag) > 0.001f ? 0.0f : 1.0f;		
+			colorAccum *= visibility;
+		}
+
+		colorAccum += material.ambient;
 	}
-		
-	return colorAccum * visibility;
+	return colorAccum;
 }
 
 vec3<f32> trace(const Ray& ray, const Scene& scene)
 {
-	auto fragment = vec3<f32>(0.1f, 0.1f, 0.1f);
+	vec3<f32> fragment;
 
 	for (auto light : scene.lights)
 	{
@@ -283,22 +298,22 @@ void render(uint32* const pixels, const sint32 width, const sint32 height)
 	
 	Scene scene = {};
 	
-	//scene.lights.emplace_back(vec3<f32>(-2.0f, -1.0f, -1.0f), vec3<f32>(0.7f, 0.7f, 0.7f));
-	//scene.lights.emplace_back(vec3<f32>(-4.0f, 10.0f, -1.0f), vec3<f32>(0.7f, 0.7f, 0.7f));
-	scene.lights.emplace_back(vec3<f32>(-8.0f, 4.0f, -8.0f), vec3<f32>(0.7f, 0.7f, 0.7f));
+    //scene.lights.emplace_back(vec3<f32>(-2.0f, -1.0f, -1.0f), vec3<f32>(0.7f, 0.3f, 0.3f));
+	//scene.lights.emplace_back(vec3<f32>(-4.0f, 10.0f, -1.0f), vec3<f32>(0.3f, 0.3f, 0.7f));
+	scene.lights.emplace_back(vec3<f32>(-6.0f, 2.0f, 2.0f), vec3<f32>(0.7f, 0.7f, 0.7f));
 
-	scene.materials.emplace_back(vec3<f32>(0.0f, 0.0f, 0.0f), vec3<f32>(0.0f, 0.0f, 0.0f), 0.0f);
-	scene.materials.emplace_back(vec3<f32>(0.9f, 0.3f, 0.3f), vec3<f32>(0.9f, 0.3f, 0.3f), 32.0f);
-	scene.materials.emplace_back(vec3<f32>(0.3f, 0.5f, 0.9f), vec3<f32>(0.3f, 0.5f, 0.9f), 64.0f);
-	scene.materials.emplace_back(vec3<f32>(0.5f, 0.5f, 0.5f), vec3<f32>(0.5f, 0.5f, 0.5f), 1.0f);
-	scene.materials.emplace_back(vec3<f32>(0.3f, 0.3f, 0.9f), vec3<f32>(0.3f, 0.3f, 0.09f), 24.0f);
+	scene.materials.emplace_back(vec3<f32>(0.0f, 0.0f, 0.0f), vec3<f32>(0.0f, 0.0f, 0.0f), vec3<f32>(0.0f, 0.0f, 0.0f), 0.0f);
+	scene.materials.emplace_back(vec3<f32>(0.3f, 0.1f, 0.1f), vec3<f32>(0.9f, 0.3f, 0.3f), vec3<f32>(0.9f, 0.3f, 0.3f), 32.0f);
+	scene.materials.emplace_back(vec3<f32>(0.1f, 0.2f, 0.4f), vec3<f32>(0.3f, 0.5f, 0.9f), vec3<f32>(0.3f, 0.5f, 0.9f), 64.0f);
+	scene.materials.emplace_back(vec3<f32>(0.2f, 0.2f, 0.2f), vec3<f32>(0.5f, 0.5f, 0.5f), vec3<f32>(0.5f, 0.5f, 0.5f), 1.0f);
+	scene.materials.emplace_back(vec3<f32>(0.1f, 0.1f, 0.4f), vec3<f32>(0.3f, 0.3f, 0.9f), vec3<f32>(0.3f, 0.3f, 0.9f), 24.0f);
 
-	scene.spheres.emplace_back(2.0f, vec3<f32>(-1.0f, 2.0f, -9.0f), 1);
+	scene.spheres.emplace_back(2.0f, vec3<f32>(-3.0f, 1.0f, -9.0f), 1);
 	scene.spheres.emplace_back(1.7f, vec3<f32>(2.3f, 0.0f, -9.0f), 2);
 	scene.spheres.emplace_back(0.5f, vec3<f32>(0.0f, 0.0f, -5.0f), 4);
 
 	scene.planes.emplace_back(vec3<f32>(0.0f, 0.0f, 1.0f), 40.0f, 3);
-	scene.planes.emplace_back(vec3<f32>(0.0f, 1.0f, 0.0f), 2.0f, 3);	
+    scene.planes.emplace_back(vec3<f32>(0.0f, 1.0f, 0.0f), 2.0f, 3);	
 	scene.planes.emplace_back(vec3<f32>(-1.0f, 0.0f, 0.0f), 4.0f, 3);
 
 	for (auto y = 0; y < height; ++y)
