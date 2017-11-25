@@ -116,6 +116,10 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="image.h">
+      <SubType>
+      </SubType>
+    </ClInclude>
     <ClInclude Include="math.h">
       <SubType>
       </SubType>

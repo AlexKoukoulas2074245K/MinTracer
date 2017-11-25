@@ -4,7 +4,7 @@
 /**********************************************************************/
 
 #if defined(DEBUG) || defined(_DEBUG)
-
+#include <vld.h>
 #endif
 
 #include <fstream>
@@ -15,6 +15,7 @@
 
 #include "typedefs.h"
 #include "math.h"
+#include "image.h"
 
 static const f32 T_MIN = 0.01f;
 static const f32 T_MAX = 100.0f;
@@ -139,17 +140,38 @@ struct BitmapHeader
 };
 #pragma pack(pop)
 
-void writeBMP(const std::string& fileName, uint32* const outputPixels, const sint32 imageWidth, const sint32 imageHeight)
+void decimateFragments(const Image<vec3<f32>>& inputImage, Image<vec3<f32>>& decimatedResult)
 {
-	const auto outputPixelsSize = sizeof(uint32) * imageWidth * imageHeight;
+	const auto width = inputImage.getWidth();
+	const auto height = inputImage.getHeight();
+
+	for (auto y = 1; y < height; y += 2)
+	{
+		for (auto x = 1; x < width; x += 2)
+		{
+			const auto avgVal = inputImage[y - 1][x - 1] * 0.25f +
+				                inputImage[y - 1][x    ] * 0.25f +
+				                inputImage[y    ][x - 1] * 0.25f +
+				                inputImage[y    ][x    ] * 0.25f;
+
+			decimatedResult[y/2][x/2] = avgVal;			
+		}
+	}
+}
+
+void writeBMP(const std::string& fileName, const Image<vec3<f32>>& inputImage)
+{
+	const auto width = inputImage.getWidth();
+	const auto height = inputImage.getHeight();
+	const auto outputPixelsSize = sizeof(uint32) * width * height;
 	
 	BitmapHeader bmh = {};
 	bmh.fileType     = 0x4D42;
 	bmh.fileSize     = sizeof(BitmapHeader) + static_cast<uint32>(outputPixelsSize);
 	bmh.bitmapOffset = sizeof(BitmapHeader);
 	bmh.size         = sizeof(BitmapHeader) - 14;
-	bmh.width        = imageWidth;
-	bmh.height       = -imageHeight;
+	bmh.width        = width;
+	bmh.height       = -height;
 	bmh.planes       = 1;
 	bmh.bitsPerPixel = 32;
 	bmh.sizeOfBitmap = static_cast<uint32>(outputPixelsSize);
@@ -158,8 +180,16 @@ void writeBMP(const std::string& fileName, uint32* const outputPixels, const sin
 
 	if (outputFile.good())
 	{
-		outputFile.write(reinterpret_cast<char*>(&bmh), sizeof(BitmapHeader));
-		outputFile.write(reinterpret_cast<char*>(outputPixels), outputPixelsSize);
+		outputFile.write(reinterpret_cast<char*>(&bmh), sizeof(BitmapHeader));		
+
+		for (auto y = 0; y < height; ++y)
+		{
+			for (auto x = 0; x < width; ++x)
+			{
+				auto val = vec3toARGB(inputImage[y][x]);
+				outputFile.write(reinterpret_cast<char*>(&val), sizeof(uint32));
+			}
+		}		
 	}
 
 	outputFile.close();
@@ -167,13 +197,12 @@ void writeBMP(const std::string& fileName, uint32* const outputPixels, const sin
 
 std::unique_ptr<HitInfo> rayPlaneIntersectionTest(const Ray& ray, const Plane& plane)
 {
-	f32 denom = (-ray.direction).dot(plane.normal);
+	const auto denom = (-ray.direction).dot(plane.normal);
 
 	if (denom > 0.0f)
 	{
-		f32 t = (plane.d - (plane.normal.dot(ray.origin)))/denom;
-
-		vec3<f32> hitPos = ray.origin + ray.direction * t;
+		const auto t = (plane.d - (plane.normal.dot(ray.origin)))/denom;
+		const auto hitPos = ray.origin + ray.direction * t;
 		
 		return std::make_unique<HitInfo>(true, hitPos, plane.normal, plane.matIndex, t);
 	}
@@ -288,19 +317,12 @@ vec3<f32> trace(const Ray& ray, const Scene& scene)
 	return fragment;
 }
 
-void render(uint32* const pixels, const sint32 width, const sint32 height)
+void render(Image<vec3<f32>>& result)
 {
-	const auto invWidth = 1.0f/width;
-	const auto invHeight = 1.0f/height;
-	const auto fov = PI/3.0f;
-	const auto aspect = static_cast<f32>(width)/height;
-	const auto angle = tan(fov * 0.5f);
-	
+	// Initialize scene
 	Scene scene = {};
-	
-    //scene.lights.emplace_back(vec3<f32>(-2.0f, -1.0f, -1.0f), vec3<f32>(0.7f, 0.3f, 0.3f));
-	//scene.lights.emplace_back(vec3<f32>(-4.0f, 10.0f, -1.0f), vec3<f32>(0.3f, 0.3f, 0.7f));
-	scene.lights.emplace_back(vec3<f32>(-6.0f, 2.0f, 2.0f), vec3<f32>(0.7f, 0.7f, 0.7f));
+	    
+	scene.lights.emplace_back(vec3<f32>(-2.0f, 2.0f, -2.0f), vec3<f32>(0.7f, 0.7f, 0.7f));
 
 	scene.materials.emplace_back(vec3<f32>(0.0f, 0.0f, 0.0f), vec3<f32>(0.0f, 0.0f, 0.0f), vec3<f32>(0.0f, 0.0f, 0.0f), 0.0f);
 	scene.materials.emplace_back(vec3<f32>(0.3f, 0.1f, 0.1f), vec3<f32>(0.9f, 0.3f, 0.3f), vec3<f32>(0.9f, 0.3f, 0.3f), 32.0f);
@@ -312,9 +334,18 @@ void render(uint32* const pixels, const sint32 width, const sint32 height)
 	scene.spheres.emplace_back(1.7f, vec3<f32>(2.3f, 0.0f, -9.0f), 2);
 	scene.spheres.emplace_back(0.5f, vec3<f32>(0.0f, 0.0f, -5.0f), 4);
 
-	scene.planes.emplace_back(vec3<f32>(0.0f, 0.0f, 1.0f), 40.0f, 3);
+	scene.planes.emplace_back(vec3<f32>(0.0f, 0.0f, 1.0f), 30.0f, 3);
     scene.planes.emplace_back(vec3<f32>(0.0f, 1.0f, 0.0f), 2.0f, 3);	
-	scene.planes.emplace_back(vec3<f32>(-1.0f, 0.0f, 0.0f), 4.0f, 3);
+	//scene.planes.emplace_back(vec3<f32>(-1.0f, 0.0f, 0.0f), 4.0f, 3);
+
+	// Calculate ray direction parameters
+	const auto width = result.getWidth();
+	const auto height = result.getHeight();
+	const auto invWidth = 1.0f / width;
+	const auto invHeight = 1.0f / height;
+	const auto fov = PI / 3.0f;
+	const auto aspect = static_cast<f32>(width) / height;
+	const auto angle = tan(fov * 0.5f);
 
 	for (auto y = 0; y < height; ++y)
 	{
@@ -326,9 +357,8 @@ void render(uint32* const pixels, const sint32 width, const sint32 height)
 			vec3<f32> rayDirection(xx, yy, -1.0f);
 			rayDirection.normalize();
 			Ray ray(rayDirection, vec3<f32>());
-
-			const auto pixel = trace(ray, scene);
-			pixels[y * width + x] = vec3toARGB(pixel);
+			
+			result[y][x] = trace(ray, scene);
 		}
 
 		const auto percComplete = uint32((y / static_cast<f32>(height)) * 100);
@@ -344,21 +374,23 @@ void render(uint32* const pixels, const sint32 width, const sint32 height)
 
 int main()
 {
-	// Output parameters
-	const auto outputWidth = 840;
-	const auto outputHeight = 680;
-	const auto outputFileName = "output.bmp";
+	// Output parameters	
+	const auto outputFileName = "output.bmp";	
+	const auto width = 840;
+	const auto height = 680;
 
-	auto* outputPixels = new uint32[outputHeight * outputWidth];
-	
-	render(outputPixels, outputWidth, outputHeight);
-	
-	writeBMP(outputFileName, outputPixels, outputWidth, outputHeight);
+	// Render at initial resolution
+    Image<vec3<f32>> renderedResult(width, height);
+	render(renderedResult);
+
+	// Decimate Result
+	Image<vec3<f32>> decimatedRenderedResult(width/2, height/2);
+    decimateFragments(renderedResult, decimatedRenderedResult);
+
+	// Write Decimated Result
+	writeBMP(outputFileName, decimatedRenderedResult);
 	
 	std::cout << "Finished writing output to file.. " << std::endl;
-
-	// Cleanup
-	delete[] outputPixels;
 
 	// Attempt to open result image 
 	system(outputFileName);
