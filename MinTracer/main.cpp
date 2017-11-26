@@ -12,6 +12,9 @@
 #include <string>
 #include <memory>
 #include <vector>
+#include <chrono>
+#include <thread>
+#include <atomic>
 
 #include "typedefs.h"
 #include "math.h"
@@ -375,45 +378,79 @@ void render(Image<vec3<f32>>& result)
 	const auto aspect = static_cast<f32>(width) / height;
 	const auto angle = tan(fov * 0.5f);
 
-	for (auto y = 0; y < height; ++y)
+	const auto threadCount = 8;	
+	const auto renderStart = std::chrono::steady_clock::now();
+
+	std::atomic_long rowsRendered = 0;
+	std::thread workers[threadCount];
+	std::thread announcer([&rowsRendered, height]()
 	{
-		for (auto x = 0; x < width; ++x)
+		auto currentPercent = 0;
+		while (rowsRendered != height)
 		{
-			const auto xx = (2 * ((x + 0.5f) * invWidth) - 1) * angle * aspect;
-			const auto yy = (1 - 2 * ((y + 0.5f) * invHeight)) * angle;
-			
-			vec3<f32> rayDirection(xx, yy, -1.0f);
-			rayDirection.normalize();
-			Ray ray(rayDirection, vec3<f32>());
-			
-			result[y][x] = trace(ray, scene);
+			const auto completedPerc = static_cast<uint32>(100 * (static_cast<float>(rowsRendered) / height));
+			if (currentPercent != completedPerc)
+			{
+				currentPercent = completedPerc;
+				std::cout << "Ray Tracing " << currentPercent << " % complete" << std::endl;
+			}
+		}
+	});
+
+	for (auto i = 0; i < threadCount; ++i)
+	{
+		const auto workPerThread = height / threadCount;
+		auto currentThreadWork = workPerThread;
+
+		if (i == threadCount - 1 && height % workPerThread != 0)
+		{
+			currentThreadWork += height % workPerThread;
 		}
 
-		const auto percComplete = uint32((y / static_cast<f32>(height)) * 100);
-
-		if (percComplete % 10 == 0 && y % (height/10) == 0)
+		workers[i] = std::thread([&scene, &result, &rowsRendered, i, workPerThread, currentThreadWork, width, invWidth, invHeight, angle, aspect]()
 		{
-			std::cout << "Tracing " << percComplete << "% complete" << std::endl;
-		}		
+			for (auto y = i * workPerThread; y < i * workPerThread + currentThreadWork; ++y)
+			{
+				for (auto x = 0; x < width; ++x)
+				{
+					const auto xx = (2 * ((x + 0.5f) * invWidth) - 1) * angle * aspect;
+					const auto yy = (1 - 2 * ((y + 0.5f) * invHeight)) * angle;
+
+					vec3<f32> rayDirection(xx, yy, -1.0f);
+					rayDirection.normalize();
+					Ray ray(rayDirection, vec3<f32>());
+
+					result[y][x] = trace(ray, scene);					
+				}
+				rowsRendered++;
+			}
+		});
 	}
 
-	std::cout << "Tracing 100% complete" << std::endl;
+	for (auto i = 0; i < threadCount; ++i)
+	{
+		workers[i].join();
+	}	
+	announcer.join();
+
+	const auto diff = std::chrono::steady_clock::now() - renderStart;
+	std::cout << "Ray Trace finished - " << std::chrono::duration<double, std::milli>(diff).count() << " ms elapsed | " << threadCount << " with worker(s)" << std::endl;	
 }
 
 int main()
 {
 	// Output parameters	
 	const auto outputFileName = "output.bmp";	
-	const auto width = 64;
-	const auto height = 48;
-
+	const auto width = 512;
+	const auto height = 500;
+	
 	// Render at initial resolution
     Image<vec3<f32>> renderedResult(width, height);
-	render(renderedResult);
+	render(renderedResult);	
 
 	// Scale Result
 	Image<vec3<f32>> scaledResult;
-    scaleImage(renderedResult, scaledResult, 8.0f);
+    scaleImage(renderedResult, scaledResult, 1.0f);
 
 	// Write Decimated Result
 	writeBMP(outputFileName, scaledResult);
@@ -421,6 +458,5 @@ int main()
 	std::cout << "Finished writing output to file.. " << std::endl;
 
 	// Attempt to open result image 
-	system(outputFileName);
-	
+	system(outputFileName);	
 }
