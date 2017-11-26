@@ -140,21 +140,49 @@ struct BitmapHeader
 };
 #pragma pack(pop)
 
-void decimateFragments(const Image<vec3<f32>>& inputImage, Image<vec3<f32>>& decimatedResult)
+void scaleImage(const Image<vec3<f32>>& inputImage, Image<vec3<f32>>& result, const f32 scaleFactor)
 {
 	const auto width = inputImage.getWidth();
 	const auto height = inputImage.getHeight();
 
-	for (auto y = 1; y < height; y += 2)
-	{
-		for (auto x = 1; x < width; x += 2)
-		{
-			const auto avgVal = inputImage[y - 1][x - 1] * 0.25f +
-				                inputImage[y - 1][x    ] * 0.25f +
-				                inputImage[y    ][x - 1] * 0.25f +
-				                inputImage[y    ][x    ] * 0.25f;
+	result.resize(static_cast<sint32>(width * scaleFactor), static_cast<sint32>(height * scaleFactor));
 
-			decimatedResult[y/2][x/2] = avgVal;			
+	const auto roundedScaleFactor = lroundf(scaleFactor);
+	const auto invScaleFactor = 1.0f / scaleFactor;
+	
+	// Downscaling (2x2 averaging)
+	if (invScaleFactor > 1.0f)
+	{
+		const auto step = lroundf(invScaleFactor);
+		const auto weight = 1.0f / lroundf(static_cast<float>(powl(step, 2)));
+
+		for (auto y = step - 1; y < height; y += step)
+		{
+			for (auto x = step - 1; x < width; x += step)
+			{
+				
+				for (auto j = -step + 1; j < 1; ++j)
+				{
+					for (auto i = -step + 1; i < 1; ++i)
+					{
+						result[y/step][x/step] += inputImage[y + j][x + i] * weight;
+					}
+				}								
+			}
+		}
+	}
+	// Upscaling (Nearest Neighbour)
+	else	
+	{
+		const auto width = result.getWidth();
+		const auto height = result.getHeight();
+
+		for (auto y = 0; y < height; ++y)
+		{
+			for (auto x = 0; x < width; ++x)
+			{
+				result[y][x] = inputImage[y / roundedScaleFactor][x / roundedScaleFactor];
+			}
 		}
 	}
 }
@@ -376,19 +404,19 @@ int main()
 {
 	// Output parameters	
 	const auto outputFileName = "output.bmp";	
-	const auto width = 840;
-	const auto height = 680;
+	const auto width = 64;
+	const auto height = 48;
 
 	// Render at initial resolution
     Image<vec3<f32>> renderedResult(width, height);
 	render(renderedResult);
 
-	// Decimate Result
-	Image<vec3<f32>> decimatedRenderedResult(width/2, height/2);
-    decimateFragments(renderedResult, decimatedRenderedResult);
+	// Scale Result
+	Image<vec3<f32>> scaledResult;
+    scaleImage(renderedResult, scaledResult, 8.0f);
 
 	// Write Decimated Result
-	writeBMP(outputFileName, decimatedRenderedResult);
+	writeBMP(outputFileName, scaledResult);
 	
 	std::cout << "Finished writing output to file.. " << std::endl;
 
