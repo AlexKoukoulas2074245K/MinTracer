@@ -334,13 +334,11 @@ vec3<f32> shade(const Scene& scene, const Ray& ray, const Light& light)
 			const auto reverseIntersectionHitToLightMag = length(revHitToLight);
 			
 			// In order to cancel visibility, i.e. the object is in shadow, we need to make sure that there
-			// exists an object inbetween the original hit object and the light's position, and also that 
-			// this object is not behind the light
-			const auto objectInBetweenHitInfoAndLight = reverseIntersectionHitToLightMag < originalHitToLightMag;
-			const auto objectNotBehindLight = dot(normalize(prevHitToLight), normalize(revHitToLight)) > 0.0f;
+			// exists an object inbetween the original hit object and the light's position
+			const auto objectInBetweenHitInfoAndLight = reverseIntersectionHitToLightMag < originalHitToLightMag;			
 
 			// Enshadow only if the above conditions are satisfied
-			visibility = objectInBetweenHitInfoAndLight && objectInBetweenHitInfoAndLight ? 0.0f : 1.0f;
+			visibility = objectInBetweenHitInfoAndLight? 0.0f : 1.0f;
 			colorAccum *= visibility;		
 		}
 		
@@ -382,7 +380,7 @@ void render(Image<vec3<f32>>& result)
     scene.planes.emplace_back(vec3<f32>(0.0f, 1.0f, 0.0f), 2.0f, 3);		
 	scene.planes.emplace_back(vec3<f32>(0.0f, -1.0f, 0.0f), 4.0f, 3);
 	scene.planes.emplace_back(vec3<f32>(-1.0f, 0.0f, 0.0f), 4.0f, 3);
-	scene.planes.emplace_back(vec3<f32>(1.0f, 0.0f, 0.0f), 4.0f, 3);
+	scene.planes.emplace_back(vec3<f32>(1.0f, 0.0f, 0.0f), 6.0f, 3);
 
 	// Calculate ray direction parameters
 	const auto width = result.getWidth();
