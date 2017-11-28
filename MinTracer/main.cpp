@@ -4,7 +4,7 @@
 /**********************************************************************/
 
 #if defined(DEBUG) || defined(_DEBUG)
-#include <vld.h>
+//#include <vld.h>
 #endif
 
 #include <fstream>
@@ -228,14 +228,17 @@ void writeBMP(const std::string& fileName, const Image<vec3<f32>>& inputImage)
 
 std::unique_ptr<HitInfo> rayPlaneIntersectionTest(const Ray& ray, const Plane& plane)
 {
-	const auto denom = (-ray.direction).dot(plane.normal);
+	const auto denom = dot(plane.normal, ray.direction);
 
-	if (denom > 0.0f)
+	if (denom > 1e-6f || denom <-1e-6f)
 	{
-		const auto t = (plane.d - (plane.normal.dot(ray.origin)))/denom;
-		const auto hitPos = ray.origin + ray.direction * t;
+		const auto t = -(plane.d + (dot(plane.normal, ray.origin)))/denom;
+		if (t > 0.0f)
+		{
+			const auto hitPos = ray.origin + ray.direction * t;
+			return std::make_unique<HitInfo>(true, hitPos, plane.normal, plane.matIndex, t);						
+		}
 		
-		return std::make_unique<HitInfo>(true, hitPos, plane.normal, plane.matIndex, t);
 	}
 
 	return std::make_unique<HitInfo>(false, vec3<f32>(), vec3<f32>(), 0, T_MAX);
@@ -245,9 +248,9 @@ std::unique_ptr<HitInfo> raySphereIntersectionTest(const Ray& ray, const Sphere&
 {
 	const auto toRay = ray.origin - sphere.center;
 
-	const auto a = ray.direction.dot(ray.direction);
-	const auto b = 2.0f * ray.direction.dot(toRay);
-	const auto c = toRay.dot(toRay) - sphere.radius * sphere.radius;
+	const auto a = dot(ray.direction, ray.direction);
+	const auto b = 2.0f * dot(toRay, ray.direction);
+	const auto c = dot(toRay, toRay) - sphere.radius * sphere.radius;
 	const auto det = b * b - 4 * a * c;
 
 	if (det > 0.0f)
@@ -257,15 +260,15 @@ std::unique_ptr<HitInfo> raySphereIntersectionTest(const Ray& ray, const Sphere&
 
 		if (minT > 0.0f)
 		{
-			const auto hitPos = ray.origin + ray.direction * (minT);
-			auto normal = (hitPos - sphere.center).normalize();
+			const auto hitPos = ray.origin + ray.direction * minT;
+			auto normal = normalize(hitPos - sphere.center);
 
-			if (toRay.length() < sphere.radius + T_MIN)
+			if (length(toRay) < sphere.radius + T_MIN)
 			{
 				normal = -normal;
 			}
 
-			return std::make_unique<HitInfo>(true, hitPos, (hitPos - sphere.center).normalize(), sphere.matIndex, minT);
+			return std::make_unique<HitInfo>(true, hitPos, normal, sphere.matIndex, minT);
 		}
 		
 	}
@@ -281,7 +284,7 @@ std::unique_ptr<HitInfo> intersectScene(const Scene& scene, const Ray& ray)
 	{
 		auto hitInfo = raySphereIntersectionTest(ray, sphere);
 
-		if (hitInfo->hit && hitInfo->t < closestHitInfo->t)
+		if (hitInfo->hit && hitInfo->t < closestHitInfo->t && hitInfo->position.z < -T_MIN)
 		{			
 			closestHitInfo = std::move(hitInfo);
 		}
@@ -291,7 +294,7 @@ std::unique_ptr<HitInfo> intersectScene(const Scene& scene, const Ray& ray)
 	{
 		auto hitInfo = rayPlaneIntersectionTest(ray, plane);
 
-		if (hitInfo->hit && hitInfo->t < closestHitInfo->t)
+		if (hitInfo->hit && hitInfo->t < closestHitInfo->t && hitInfo->position.z < -T_MIN)
 		{			
 			closestHitInfo = std::move(hitInfo);
 		}
@@ -309,29 +312,39 @@ vec3<f32> shade(const Scene& scene, const Ray& ray, const Light& light)
 	if (hitInfo->hit)
 	{		
 		auto hitToLight = light.position - hitInfo->position;
-		const auto lightDir = hitToLight.normalize();
-		const auto viewDir = (hitInfo->position - ray.origin).normalize();
-		const auto reflDir = (viewDir - hitInfo->normal * viewDir.dot(hitInfo->normal) * 2.0f).normalize();
+		hitToLight = normalize(hitToLight);
+		const auto viewDir = normalize(hitInfo->position - ray.origin);
+		const auto reflDir = normalize(viewDir - hitInfo->normal * dot(viewDir, hitInfo->normal) * 2.0f);
 
-		const auto diffuseTerm = max(0.0f, lightDir.dot(hitInfo->normal));
+		const auto diffuseTerm = max(0.0f, dot(hitInfo->normal, hitToLight));
 		const auto& material = scene.materials[hitInfo->surfaceMatIndex];
-		const auto specularTerm = powf(max(0.0f, lightDir.dot(reflDir)), material.glossiness);
+		const auto specularTerm = powf(max(0.0f, dot(reflDir, hitToLight)), material.glossiness);
 		colorAccum += (material.diffuse * light.color) * diffuseTerm;
 		colorAccum += (material.specular * light.color) * specularTerm;	
 
 		auto visibility = 1.0f;
-		auto lightHitInfo = intersectScene(scene, Ray(hitToLight, hitInfo->position));
+		auto lightHitInfo = intersectScene(scene, Ray(hitToLight, hitInfo->position));		
 
+		// Shadow test
 		if (lightHitInfo->hit)
-		{			
-			const auto originalHitToLightMag = (light.position - hitInfo->position).length();
-			const auto reverseIntersectionHitToLightMag = (light.position - lightHitInfo->position).length();
+		{																
+			const auto prevHitToLight = light.position - hitInfo->position;
+			const auto revHitToLight = light.position - lightHitInfo->position;
+			const auto originalHitToLightMag = length(prevHitToLight);
+			const auto reverseIntersectionHitToLightMag = length(revHitToLight);
+			
+			// In order to cancel visibility, i.e. the object is in shadow, we need to make sure that there
+			// exists an object inbetween the original hit object and the light's position, and also that 
+			// this object is not behind the light
+			const auto objectInBetweenHitInfoAndLight = reverseIntersectionHitToLightMag < originalHitToLightMag;
+			const auto objectNotBehindLight = dot(normalize(prevHitToLight), normalize(revHitToLight)) > 0.0f;
 
-			visibility = (originalHitToLightMag - reverseIntersectionHitToLightMag) > 0.001f ? 0.0f : 1.0f;		
-			colorAccum *= visibility;
+			// Enshadow only if the above conditions are satisfied
+			visibility = objectInBetweenHitInfoAndLight && objectInBetweenHitInfoAndLight ? 0.0f : 1.0f;
+			colorAccum *= visibility;		
 		}
-
-		colorAccum += material.ambient;
+		
+		colorAccum += material.ambient;		
 	}
 	return colorAccum;
 }
@@ -353,21 +366,23 @@ void render(Image<vec3<f32>>& result)
 	// Initialize scene
 	Scene scene = {};
 	    
-	scene.lights.emplace_back(vec3<f32>(-2.0f, 2.0f, -2.0f), vec3<f32>(0.7f, 0.7f, 0.7f));
+	scene.lights.emplace_back(vec3<f32>(0.0f, 4.0f, 0.0f), vec3<f32>(0.7f, 0.7f, 0.7f));
 
 	scene.materials.emplace_back(vec3<f32>(0.0f, 0.0f, 0.0f), vec3<f32>(0.0f, 0.0f, 0.0f), vec3<f32>(0.0f, 0.0f, 0.0f), 0.0f);
 	scene.materials.emplace_back(vec3<f32>(0.3f, 0.1f, 0.1f), vec3<f32>(0.9f, 0.3f, 0.3f), vec3<f32>(0.9f, 0.3f, 0.3f), 32.0f);
 	scene.materials.emplace_back(vec3<f32>(0.1f, 0.2f, 0.4f), vec3<f32>(0.3f, 0.5f, 0.9f), vec3<f32>(0.3f, 0.5f, 0.9f), 64.0f);
 	scene.materials.emplace_back(vec3<f32>(0.2f, 0.2f, 0.2f), vec3<f32>(0.5f, 0.5f, 0.5f), vec3<f32>(0.5f, 0.5f, 0.5f), 1.0f);
-	scene.materials.emplace_back(vec3<f32>(0.1f, 0.1f, 0.4f), vec3<f32>(0.3f, 0.3f, 0.9f), vec3<f32>(0.3f, 0.3f, 0.9f), 24.0f);
+	scene.materials.emplace_back(vec3<f32>(0.1f, 0.1f, 0.4f), vec3<f32>(0.3f, 0.3f, 0.9f), vec3<f32>(0.3f, 0.3f, 0.9f), 24.0f);	
 
 	scene.spheres.emplace_back(2.0f, vec3<f32>(-3.0f, 1.0f, -9.0f), 1);
 	scene.spheres.emplace_back(1.7f, vec3<f32>(2.3f, 0.0f, -9.0f), 2);
 	scene.spheres.emplace_back(0.5f, vec3<f32>(0.0f, 0.0f, -5.0f), 4);
 
-	scene.planes.emplace_back(vec3<f32>(0.0f, 0.0f, 1.0f), 30.0f, 3);
-    scene.planes.emplace_back(vec3<f32>(0.0f, 1.0f, 0.0f), 2.0f, 3);	
-	//scene.planes.emplace_back(vec3<f32>(-1.0f, 0.0f, 0.0f), 4.0f, 3);
+	scene.planes.emplace_back(vec3<f32>(0.0f, 0.0f, 1.0f), 10.0f, 3);
+    scene.planes.emplace_back(vec3<f32>(0.0f, 1.0f, 0.0f), 2.0f, 3);		
+	scene.planes.emplace_back(vec3<f32>(0.0f, -1.0f, 0.0f), 4.0f, 3);
+	scene.planes.emplace_back(vec3<f32>(-1.0f, 0.0f, 0.0f), 4.0f, 3);
+	scene.planes.emplace_back(vec3<f32>(1.0f, 0.0f, 0.0f), 4.0f, 3);
 
 	// Calculate ray direction parameters
 	const auto width = result.getWidth();
@@ -415,9 +430,12 @@ void render(Image<vec3<f32>>& result)
 				{
 					const auto xx = (2 * ((x + 0.5f) * invWidth) - 1) * angle * aspect;
 					const auto yy = (1 - 2 * ((y + 0.5f) * invHeight)) * angle;
-
+					if (y == 281 && x == 93)
+					{
+						const auto b = false;
+					}
 					vec3<f32> rayDirection(xx, yy, -1.0f);
-					rayDirection.normalize();
+					rayDirection = normalize(rayDirection);
 					Ray ray(rayDirection, vec3<f32>());
 
 					result[y][x] = trace(ray, scene);					
@@ -441,8 +459,8 @@ int main()
 {
 	// Output parameters	
 	const auto outputFileName = "output.bmp";	
-	const auto width = 512;
-	const auto height = 500;
+	const auto width = 640;
+	const auto height = 480;
 	
 	// Render at initial resolution
     Image<vec3<f32>> renderedResult(width, height);
