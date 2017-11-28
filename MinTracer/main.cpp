@@ -143,7 +143,7 @@ struct BitmapHeader
 };
 #pragma pack(pop)
 
-void scaleImage(const Image<vec3<f32>>& inputImage, Image<vec3<f32>>& result, const f32 scaleFactor)
+void scaleImage(const Image& inputImage, Image& result, const f32 scaleFactor)
 {
 	const auto width = inputImage.getWidth();
 	const auto height = inputImage.getHeight();
@@ -190,7 +190,7 @@ void scaleImage(const Image<vec3<f32>>& inputImage, Image<vec3<f32>>& result, co
 	}
 }
 
-void writeBMP(const std::string& fileName, const Image<vec3<f32>>& inputImage)
+void writeBMP(const std::string& fileName, const Image& inputImage)
 {
 	const auto width = inputImage.getWidth();
 	const auto height = inputImage.getHeight();
@@ -361,7 +361,7 @@ vec3<f32> trace(const Ray& ray, const Scene& scene)
 	return fragment;
 }
 
-void render(Image<vec3<f32>>& result)
+void render(Image& result)
 {
 	// Initialize scene
 	Scene scene = {};
@@ -463,11 +463,11 @@ int main()
 	const auto height = 480;
 	
 	// Render at initial resolution
-    Image<vec3<f32>> renderedResult(width, height);
+    Image renderedResult(width, height);
 	render(renderedResult);	
 
 	// Scale Result
-	Image<vec3<f32>> scaledResult;
+	Image scaledResult;
     scaleImage(renderedResult, scaledResult, 1.0f);
 
 	// Write Decimated Result
