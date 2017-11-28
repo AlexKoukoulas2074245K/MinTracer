@@ -7,7 +7,6 @@
 //#include <vld.h>
 #endif
 
-#include <fstream>
 #include <iostream>
 #include <string>
 #include <memory>
@@ -120,111 +119,6 @@ struct HitInfo
 	{
 	}
 };
-
-#pragma pack(push, 1)
-struct BitmapHeader
-{
-	uint16 fileType;
-	uint32 fileSize;
-	uint16 reserved1;
-	uint16 reserved2;
-	uint32 bitmapOffset;
-	uint32 size;
-	sint32 width;
-	sint32 height;
-	uint16 planes;
-	uint16 bitsPerPixel;
-	uint32 compression;
-	uint32 sizeOfBitmap;
-	sint32 horResolution;
-	sint32 verResolution;
-	uint32 colorsUsed;
-	uint32 colorsImportant;	
-};
-#pragma pack(pop)
-
-void scaleImage(const Image& inputImage, Image& result, const f32 scaleFactor)
-{
-	const auto width = inputImage.getWidth();
-	const auto height = inputImage.getHeight();
-
-	result.resize(static_cast<sint32>(width * scaleFactor), static_cast<sint32>(height * scaleFactor));
-
-	const auto roundedScaleFactor = lroundf(scaleFactor);
-	const auto invScaleFactor = 1.0f / scaleFactor;
-	
-	// Downscaling (2x2 averaging)
-	if (invScaleFactor > 1.0f)
-	{
-		const auto step = lroundf(invScaleFactor);
-		const auto weight = 1.0f / lroundf(static_cast<float>(powl(step, 2)));
-
-		for (auto y = step - 1; y < height; y += step)
-		{
-			for (auto x = step - 1; x < width; x += step)
-			{
-				
-				for (auto j = -step + 1; j < 1; ++j)
-				{
-					for (auto i = -step + 1; i < 1; ++i)
-					{
-						result[y/step][x/step] += inputImage[y + j][x + i] * weight;
-					}
-				}								
-			}
-		}
-	}
-	// Upscaling (Nearest Neighbour)
-	else	
-	{
-		const auto width = result.getWidth();
-		const auto height = result.getHeight();
-
-		for (auto y = 0; y < height; ++y)
-		{
-			for (auto x = 0; x < width; ++x)
-			{
-				result[y][x] = inputImage[y / roundedScaleFactor][x / roundedScaleFactor];
-			}
-		}
-	}
-}
-
-void writeBMP(const std::string& fileName, const Image& inputImage)
-{
-	const auto width = inputImage.getWidth();
-	const auto height = inputImage.getHeight();
-	const auto outputPixelsSize = sizeof(uint32) * width * height;
-	
-	BitmapHeader bmh = {};
-	bmh.fileType     = 0x4D42;
-	bmh.fileSize     = sizeof(BitmapHeader) + static_cast<uint32>(outputPixelsSize);
-	bmh.bitmapOffset = sizeof(BitmapHeader);
-	bmh.size         = sizeof(BitmapHeader) - 14;
-	bmh.width        = width;
-	bmh.height       = -height;
-	bmh.planes       = 1;
-	bmh.bitsPerPixel = 32;
-	bmh.sizeOfBitmap = static_cast<uint32>(outputPixelsSize);
-
-	std::ofstream outputFile(fileName, std::ios::binary | std::ios::out);
-
-	if (outputFile.good())
-	{
-		outputFile.write(reinterpret_cast<char*>(&bmh), sizeof(BitmapHeader));		
-
-		for (auto y = 0; y < height; ++y)
-		{
-			for (auto x = 0; x < width; ++x)
-			{
-				auto val = vec3toARGB(inputImage[y][x]);
-				outputFile.write(reinterpret_cast<char*>(&val), sizeof(uint32));
-			}
-		}		
-	}
-
-	outputFile.close();
-}
 
 std::unique_ptr<HitInfo> rayPlaneIntersectionTest(const Ray& ray, const Plane& plane)
 {
@@ -466,12 +360,11 @@ int main()
     Image renderedResult(width, height);
 	render(renderedResult);	
 
-	// Scale Result
-	Image scaledResult;
-    scaleImage(renderedResult, scaledResult, 1.0f);
+	// Scale result
+	renderedResult.scale(1.0f);
 
-	// Write Decimated Result
-	writeBMP(outputFileName, scaledResult);
+	// Write result to file
+	renderedResult.writeToBMP(outputFileName);
 	
 	std::cout << "Finished writing output to file.. " << std::endl;
 
