@@ -284,7 +284,7 @@ std::unique_ptr<HitInfo> intersectScene(const Scene& scene, const Ray& ray)
 	{
 		auto hitInfo = raySphereIntersectionTest(ray, sphere);
 
-		if (hitInfo->hit && hitInfo->t < closestHitInfo->t && hitInfo->position.z < -T_MIN)
+		if (hitInfo->hit && hitInfo->t < closestHitInfo->t)
 		{			
 			closestHitInfo = std::move(hitInfo);
 		}
@@ -294,7 +294,7 @@ std::unique_ptr<HitInfo> intersectScene(const Scene& scene, const Ray& ray)
 	{
 		auto hitInfo = rayPlaneIntersectionTest(ray, plane);
 
-		if (hitInfo->hit && hitInfo->t < closestHitInfo->t && hitInfo->position.z < -T_MIN)
+		if (hitInfo->hit && hitInfo->t < closestHitInfo->t)
 		{			
 			closestHitInfo = std::move(hitInfo);
 		}
@@ -335,10 +335,11 @@ vec3<f32> shade(const Scene& scene, const Ray& ray, const Light& light)
 			
 			// In order to cancel visibility, i.e. the object is in shadow, we need to make sure that there
 			// exists an object inbetween the original hit object and the light's position
-			const auto objectInBetweenHitInfoAndLight = reverseIntersectionHitToLightMag < originalHitToLightMag;			
+			const auto objectInBetweenHitInfoAndLight = (originalHitToLightMag - reverseIntersectionHitToLightMag) > 1e-6f;			
+			const auto objectNotBehindLight = dot(normalize(prevHitToLight), normalize(revHitToLight)) >= 1.0f - 1e-6f;
 
 			// Enshadow only if the above conditions are satisfied
-			visibility = objectInBetweenHitInfoAndLight? 0.0f : 1.0f;
+			visibility = objectInBetweenHitInfoAndLight && objectNotBehindLight ? 0.0f : 1.0f;
 			colorAccum *= visibility;		
 		}
 		
@@ -364,7 +365,7 @@ void render(Image<vec3<f32>>& result)
 	// Initialize scene
 	Scene scene = {};
 	    
-	scene.lights.emplace_back(vec3<f32>(0.0f, 4.0f, 0.0f), vec3<f32>(0.7f, 0.7f, 0.7f));
+	scene.lights.emplace_back(vec3<f32>(3.0f, 1.0f, 0.0f), vec3<f32>(0.7f, 0.7f, 0.7f));
 
 	scene.materials.emplace_back(vec3<f32>(0.0f, 0.0f, 0.0f), vec3<f32>(0.0f, 0.0f, 0.0f), vec3<f32>(0.0f, 0.0f, 0.0f), 0.0f);
 	scene.materials.emplace_back(vec3<f32>(0.3f, 0.1f, 0.1f), vec3<f32>(0.9f, 0.3f, 0.3f), vec3<f32>(0.9f, 0.3f, 0.3f), 32.0f);
@@ -380,7 +381,7 @@ void render(Image<vec3<f32>>& result)
     scene.planes.emplace_back(vec3<f32>(0.0f, 1.0f, 0.0f), 2.0f, 3);		
 	scene.planes.emplace_back(vec3<f32>(0.0f, -1.0f, 0.0f), 4.0f, 3);
 	scene.planes.emplace_back(vec3<f32>(-1.0f, 0.0f, 0.0f), 4.0f, 3);
-	scene.planes.emplace_back(vec3<f32>(1.0f, 0.0f, 0.0f), 6.0f, 3);
+	scene.planes.emplace_back(vec3<f32>(1.0f, 0.0f, 0.0f), 4.0f, 3);
 
 	// Calculate ray direction parameters
 	const auto width = result.getWidth();
