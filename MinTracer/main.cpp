@@ -321,13 +321,14 @@ vec3<f32> shade(const Scene& scene, const Ray& ray, const Light& light)
 		const auto specularTerm = powf(max(0.0f, dot(reflDir, hitToLight)), material.glossiness);
 		colorAccum += (material.diffuse * light.color) * diffuseTerm;
 		colorAccum += (material.specular * light.color) * specularTerm;	
-
-		auto visibility = 1.0f;
+		
 		auto lightHitInfo = intersectScene(scene, Ray(hitToLight, hitInfo->position));		
 
 		// Shadow test
 		if (lightHitInfo->hit)
 		{																
+			auto visibility = 1.0f;
+
 			const auto prevHitToLight = light.position - hitInfo->position;
 			const auto revHitToLight = light.position - lightHitInfo->position;
 			const auto originalHitToLightMag = length(prevHitToLight);
