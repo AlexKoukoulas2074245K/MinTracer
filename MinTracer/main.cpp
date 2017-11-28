@@ -4,9 +4,12 @@
 /**********************************************************************/
 
 #if defined(DEBUG) || defined(_DEBUG)
-//#include <vld.h>
+#include <vld.h>
+#include <io.h>
+#include <fcntl.h>
 #endif
 
+#include <Windows.h>
 #include <iostream>
 #include <string>
 #include <memory>
@@ -21,6 +24,8 @@
 
 static const f32 T_MIN = 0.01f;
 static const f32 T_MAX = 100.0f;
+
+using namespace std;
 
 struct Material
 {
@@ -92,10 +97,10 @@ struct Light
 
 struct Scene
 {
-	std::vector<Sphere> spheres;
-	std::vector<Light> lights;
-	std::vector<Material> materials;
-	std::vector<Plane> planes;
+	vector<Sphere> spheres;
+	vector<Light> lights;
+	vector<Material> materials;
+	vector<Plane> planes;
 };
 
 struct HitInfo
@@ -120,7 +125,7 @@ struct HitInfo
 	}
 };
 
-std::unique_ptr<HitInfo> rayPlaneIntersectionTest(const Ray& ray, const Plane& plane)
+unique_ptr<HitInfo> rayPlaneIntersectionTest(const Ray& ray, const Plane& plane)
 {
 	const auto denom = dot(plane.normal, ray.direction);
 
@@ -130,15 +135,15 @@ std::unique_ptr<HitInfo> rayPlaneIntersectionTest(const Ray& ray, const Plane& p
 		if (t > 0.0f)
 		{
 			const auto hitPos = ray.origin + ray.direction * t;
-			return std::make_unique<HitInfo>(true, hitPos, plane.normal, plane.matIndex, t);						
+			return make_unique<HitInfo>(true, hitPos, plane.normal, plane.matIndex, t);						
 		}
 		
 	}
 
-	return std::make_unique<HitInfo>(false, vec3<f32>(), vec3<f32>(), 0, T_MAX);
+	return make_unique<HitInfo>(false, vec3<f32>(), vec3<f32>(), 0, T_MAX);
 }
 
-std::unique_ptr<HitInfo> raySphereIntersectionTest(const Ray& ray, const Sphere& sphere)
+unique_ptr<HitInfo> raySphereIntersectionTest(const Ray& ray, const Sphere& sphere)
 {
 	const auto toRay = ray.origin - sphere.center;
 
@@ -162,17 +167,17 @@ std::unique_ptr<HitInfo> raySphereIntersectionTest(const Ray& ray, const Sphere&
 				normal = -normal;
 			}
 
-			return std::make_unique<HitInfo>(true, hitPos, normal, sphere.matIndex, minT);
+			return make_unique<HitInfo>(true, hitPos, normal, sphere.matIndex, minT);
 		}
 		
 	}
 	
-	return std::make_unique<HitInfo>(false, vec3<f32>(), vec3<f32>(), 0, T_MAX);
+	return make_unique<HitInfo>(false, vec3<f32>(), vec3<f32>(), 0, T_MAX);
 }
 
-std::unique_ptr<HitInfo> intersectScene(const Scene& scene, const Ray& ray)
+unique_ptr<HitInfo> intersectScene(const Scene& scene, const Ray& ray)
 {
-	std::unique_ptr<HitInfo> closestHitInfo = std::make_unique<HitInfo>(false, vec3<f32>(), vec3<f32>(), 0, T_MAX);
+	unique_ptr<HitInfo> closestHitInfo = make_unique<HitInfo>(false, vec3<f32>(), vec3<f32>(), 0, T_MAX);
 	
 	for (auto sphere : scene.spheres)
 	{
@@ -180,7 +185,7 @@ std::unique_ptr<HitInfo> intersectScene(const Scene& scene, const Ray& ray)
 
 		if (hitInfo->hit && hitInfo->t < closestHitInfo->t)
 		{			
-			closestHitInfo = std::move(hitInfo);
+			closestHitInfo = move(hitInfo);
 		}
 	}
 
@@ -190,7 +195,7 @@ std::unique_ptr<HitInfo> intersectScene(const Scene& scene, const Ray& ray)
 
 		if (hitInfo->hit && hitInfo->t < closestHitInfo->t)
 		{			
-			closestHitInfo = std::move(hitInfo);
+			closestHitInfo = move(hitInfo);
 		}
 	}
 
@@ -255,8 +260,11 @@ vec3<f32> trace(const Ray& ray, const Scene& scene)
 	return fragment;
 }
 
-void render(Image& result)
+void render(const sint32 renderWidth, const sint32 renderHeight, const sint32 targetWidth, const sint32 targetHeight, HWND windowHandle, const string& outputFilename)
 {
+	// Initilize ray tracing result
+	Image resultImage(renderWidth, renderHeight);
+
 	// Initialize scene
 	Scene scene = {};
 	    
@@ -278,61 +286,56 @@ void render(Image& result)
 	scene.planes.emplace_back(vec3<f32>(-1.0f, 0.0f, 0.0f), 4.0f, 3);
 	scene.planes.emplace_back(vec3<f32>(1.0f, 0.0f, 0.0f), 4.0f, 3);
 
-	// Calculate ray direction parameters
-	const auto width = result.getWidth();
-	const auto height = result.getHeight();
-	const auto invWidth = 1.0f / width;
-	const auto invHeight = 1.0f / height;
+	// Calculate ray direction parameters	
+	const auto invWidth = 1.0f / renderWidth;
+	const auto invHeight = 1.0f / renderHeight;
 	const auto fov = PI / 3.0f;
-	const auto aspect = static_cast<f32>(width) / height;
+	const auto aspect = static_cast<f32>(renderWidth) / renderHeight;
 	const auto angle = tan(fov * 0.5f);
 
-	const auto threadCount = 8;	
-	const auto renderStart = std::chrono::steady_clock::now();
+	const auto threadCount = 4;	
+	const auto renderStart = chrono::steady_clock::now();
 
-	std::atomic_long rowsRendered = 0;
-	std::thread workers[threadCount];
-	std::thread announcer([&rowsRendered, height]()
+	atomic_long rowsRendered = 0;
+	thread workers[threadCount];
+	thread announcer([&rowsRendered, renderHeight]()
 	{
 		auto currentPercent = 0;
-		while (rowsRendered != height)
+		while (rowsRendered != renderHeight)
 		{
-			const auto completedPerc = static_cast<uint32>(100 * (static_cast<float>(rowsRendered) / height));
+			const auto completedPerc = static_cast<uint32>(100 * (static_cast<float>(rowsRendered) / renderHeight));
 			if (currentPercent != completedPerc)
 			{
 				currentPercent = completedPerc;
-				std::cout << "Ray Tracing " << currentPercent << " % complete" << std::endl;
+				OutputDebugString(string("Ray Tracing " + to_string(currentPercent) + "% complete\n").c_str());
 			}
 		}
 	});
 
 	for (auto i = 0; i < threadCount; ++i)
 	{
-		const auto workPerThread = height / threadCount;
+		const auto workPerThread = renderHeight / threadCount;
 		auto currentThreadWork = workPerThread;
 
-		if (i == threadCount - 1 && height % workPerThread != 0)
+		if (i == threadCount - 1 && renderHeight % workPerThread != 0)
 		{
-			currentThreadWork += height % workPerThread;
+			currentThreadWork += renderHeight % workPerThread;
 		}
 
-		workers[i] = std::thread([&scene, &result, &rowsRendered, i, workPerThread, currentThreadWork, width, invWidth, invHeight, angle, aspect]()
+		workers[i] = thread([&scene, &resultImage, &rowsRendered, i, workPerThread, currentThreadWork, renderWidth, invWidth, invHeight, angle, aspect]()
 		{
 			for (auto y = i * workPerThread; y < i * workPerThread + currentThreadWork; ++y)
 			{
-				for (auto x = 0; x < width; ++x)
+				for (auto x = 0; x < renderWidth; ++x)
 				{
 					const auto xx = (2 * ((x + 0.5f) * invWidth) - 1) * angle * aspect;
 					const auto yy = (1 - 2 * ((y + 0.5f) * invHeight)) * angle;
-					if (y == 281 && x == 93)
-					{
-						const auto b = false;
-					}
+					
 					vec3<f32> rayDirection(xx, yy, -1.0f);
 					rayDirection = normalize(rayDirection);
 					Ray ray(rayDirection, vec3<f32>());
 
-					result[y][x] = trace(ray, scene);					
+					resultImage[y][x] = trace(ray, scene);					
 				}
 				rowsRendered++;
 			}
@@ -345,29 +348,153 @@ void render(Image& result)
 	}	
 	announcer.join();
 
-	const auto diff = std::chrono::steady_clock::now() - renderStart;
-	std::cout << "Ray Trace finished - " << std::chrono::duration<double, std::milli>(diff).count() << " ms elapsed | " << threadCount << " with worker(s)" << std::endl;	
-}
+	const auto diff = chrono::steady_clock::now() - renderStart;
+	cout << "Ray Trace finished - " << chrono::duration<double, milli>(diff).count() << " ms elapsed | " << threadCount << " with worker(s)" << endl;	
 
-int main()
-{
-	// Output parameters	
-	const auto outputFileName = "output.bmp";	
-	const auto width = 640;
-	const auto height = 480;
-	
-	// Render at initial resolution
-    Image renderedResult(width, height);
-	render(renderedResult);	
 
 	// Scale result
-	renderedResult.scale(1.0f);
+	resultImage.scale((targetWidth + targetHeight) / static_cast<f32>(renderWidth + renderHeight));
+
+	// Create bitmap array
+	COLORREF *arr = (COLORREF*)calloc(targetWidth * targetHeight, sizeof(COLORREF));
+
+	for (auto y = 0; y < targetHeight; ++y)
+	{
+		for (auto x = 0; x < targetWidth; ++x)
+		{
+			const auto colorVec = resultImage.getPixel(x, y);
+			arr[y * targetWidth + x] = RGB(minf(1.0f, colorVec.x) * 255, minf(1.0f, colorVec.y) * 255, minf(1.0f, colorVec.z) * 255);
+		}
+	}
+
+	// Creating and display bitmap
+	HBITMAP map = CreateBitmap(targetWidth, targetHeight, 1, 8 * 4, (void*)arr);
+	HDC src = CreateCompatibleDC(GetDC(windowHandle));
+	SelectObject(src, map); 
+	BitBlt(GetDC(windowHandle), 0, 0, targetWidth, targetHeight, src, 0, 0, SRCCOPY);
+	DeleteDC(src); // Deleting temp HDC
+	free(arr);
 
 	// Write result to file
-	renderedResult.writeToBMP(outputFileName);
-	
-	std::cout << "Finished writing output to file.. " << std::endl;
+	resultImage.writeToBMP(outputFilename);
+
+	cout << "Finished writing output to file.. " << endl;
+
 
 	// Attempt to open result image 
-	system(outputFileName);	
+	//system(outputFilename.c_str());
+}
+
+LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	switch (msg)
+	{
+		case WM_DESTROY:
+		{
+			PostQuitMessage(0);
+		} break;	
+	}
+
+	return DefWindowProc(hwnd, msg, wParam, lParam);
+}
+
+HWND createWindow(HINSTANCE instance, const sint32 windowWidth, const sint32 windowHeight, const string& title)
+{
+	// Window Registration
+	WNDCLASS wc = {};
+	wc.cbClsExtra = 0;
+	wc.cbWndExtra = 0;
+	wc.hbrBackground = (HBRUSH)GetStockObject(NULL_BRUSH);
+	wc.hCursor = LoadCursor(0, IDC_ARROW);
+	wc.hIcon = LoadIcon(0, IDI_APPLICATION);
+	wc.hInstance = instance;
+	wc.lpfnWndProc = windowProc;
+	wc.lpszClassName = title.c_str();
+	wc.lpszMenuName = 0;
+	wc.style = CS_HREDRAW | CS_VREDRAW;
+
+	if (!RegisterClass(&wc))
+	{
+		MessageBox(0, "Window class registration failed", 0, MB_ICONERROR);
+		PostQuitMessage(-1);
+	}
+
+	// Adjust window to fit client rect 
+	RECT rect = { 0, 0, windowWidth, windowHeight };
+	AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, false);
+
+	const auto w = rect.right - rect.left;
+	const auto h = rect.bottom - rect.top;
+
+	const auto x = (GetSystemMetrics(SM_CXSCREEN) - windowWidth) / 2;
+	const auto y = (GetSystemMetrics(SM_CYSCREEN) - windowHeight) / 2;
+
+	auto handle = CreateWindow(title.c_str(), title.c_str(), WS_OVERLAPPEDWINDOW ^ WS_THICKFRAME, x, y, w, h, 0, 0, instance, 0);
+
+	if (!handle)
+	{
+		MessageBox(0, "Window creation failed", "Failure", 0);
+		PostQuitMessage(-1);
+	}
+
+	// Show and Update window
+	ShowWindow(handle, SW_SHOW);
+	UpdateWindow(handle);
+
+	return handle;
+}
+
+int CALLBACK WinMain(HINSTANCE instance, HINSTANCE __, LPSTR ___, int ____)
+{	
+	// Window, Render & Target Parameters
+	const auto windowWidth = 640;
+	const auto windowHeight = 480;
+	const auto targetWidth = windowWidth * 4;
+	const auto targetHeight = windowHeight * 4;
+	auto renderWidth = 80;
+	auto renderHeight = 60;
+
+	auto windowHandle = createWindow(instance, windowWidth, windowHeight, "MinTracer");	
+	
+	MSG msg = {};
+	
+	auto rendering = false;
+
+	while (msg.message != WM_QUIT)
+	{
+		if (msg.message == WM_PAINT)
+		{		
+			if (!rendering && renderWidth <= targetWidth)
+			{
+				rendering = true;
+				thread masterRayTraceThread([&rendering, &renderWidth, &renderHeight, windowHeight, windowWidth, targetWidth, targetHeight, windowHandle]()
+				{
+					render(renderWidth, renderHeight, windowWidth, windowHeight, windowHandle, "output_images/last_rendering_" + to_string(renderWidth) + "x" + to_string(renderHeight) + ".bmp");
+					SetWindowText(windowHandle, ("MinTracer -- Current resolution: " + to_string(renderWidth) + " x " + to_string(renderHeight)).c_str());
+					if (renderWidth <= targetWidth)
+					{
+						renderWidth *= 2;
+						renderHeight *= 2;						
+					}
+					rendering = false;
+
+				});
+
+				masterRayTraceThread.detach();
+			}			
+		}
+
+		if (PeekMessage(&msg, 0, 0, 0, PM_REMOVE))
+		{
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+
+		if (renderWidth <= targetWidth && !rendering)
+		{
+			InvalidateRect(windowHandle, NULL, TRUE);
+		}
+	}		
+
+	return 0;
 }

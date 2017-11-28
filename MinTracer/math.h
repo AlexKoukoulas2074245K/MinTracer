@@ -9,11 +9,8 @@
 
 const f32 PI = 3.1415927f;
 
-template<typename T>
-inline T min(const T& a, const T& b) { return a < b ? a : b; }
-
-template<typename T>
-inline T max(const T& a, const T& b) { return a > b ? a : b; }
+inline f32 minf(const f32 a, const f32 b) { return a < b ? a : b; }
+inline f32 maxf(const f32 a, const f32 b) { return a > b ? a : b; }
 
 template<typename T>
 class vec3
@@ -76,8 +73,8 @@ template<typename T>
 inline uint32 vec3toARGB(const vec3<T>& vec)
 {
 	return 0xFF000000 |
-		uint32(min(1.0f, vec.x) * 255) << 16 |
-		uint32(min(1.0f, vec.y) * 255) << 8 |
-		uint32(min(1.0f, vec.z) * 255);
+		uint32(minf(1.0f, vec.x) * 255) << 16 |
+		uint32(minf(1.0f, vec.y) * 255) << 8 |
+		uint32(minf(1.0f, vec.z) * 255);
 }
 
