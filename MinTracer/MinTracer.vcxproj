@@ -122,6 +122,10 @@
       <SubType>
       </SubType>
     </ClCompile>
+    <ClCompile Include="win32gui.cpp">
+      <SubType>
+      </SubType>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="image.h">
@@ -137,6 +141,10 @@
       </SubType>
     </ClInclude>
     <ClInclude Include="typedefs.h">
+      <SubType>
+      </SubType>
+    </ClInclude>
+    <ClInclude Include="win32gui.h">
       <SubType>
       </SubType>
     </ClInclude>
