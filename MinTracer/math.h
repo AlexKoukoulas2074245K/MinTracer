@@ -25,7 +25,8 @@ public:
 	vec3<T>& operator += (const vec3<T>& v) { x += v.x; y += v.y; z += v.z; return *this; }
 	vec3<T>& operator *= (const vec3<T>& v) { x *= v.x; y *= v.y; z *= v.z; return *this; }
 	vec3<T>& operator /= (const vec3<T>& v) { x /= v.x; y /= v.y; z /= v.z; return *this; }
-
+	bool operator == (const vec3<T>& v) { return fabsf(x - v.x) < 1e-6 && fabsf(y - v.y) < 1e-6 && fabsf(z - v.z) < 1e-6; }
+	bool operator != (const vec3<T>& v) { return !(*this == v); }
 	vec3<T>& operator *= (const T& scalar) { x *= scalar; y *= scalar; z *= scalar; return *this; }
 	vec3<T>& operator /= (const T& scalar) { x /= scalar; y /= scalar; z /= scalar; return *this; }
 };
