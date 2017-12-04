@@ -16,6 +16,7 @@
 #include <atomic>
 
 #include "win32gui.h"
+#include "scene.h"
 #include "typedefs.h"
 #include "math.h"
 #include "image.h"
@@ -25,88 +26,6 @@ static const f32 T_MIN = 0.01f;
 static const f32 T_MAX = 100.0f;
 
 using namespace std;
-
-extern HWND lightPositionX, lightPositionY, lightPositionZ;
-extern HWND lightColorX, lightColorY, lightColorZ;
-extern HWND sphereOffsetX, sphereOffsetY, sphereOffsetZ;
-extern HWND sphereRadius;
-extern HWND sphereGlossiness;
-
-struct Material
-{
-	vec3<f32> ambient;
-	vec3<f32> diffuse;
-	vec3<f32> specular;
-	f32 glossiness;
-
-	Material(const vec3<f32>& ambient, const vec3<f32>& diffuse, const vec3<f32>& specular, f32 glossiness)
-		: ambient(ambient)
-		, diffuse(diffuse)
-		, specular(specular)
-		, glossiness(glossiness)
-	{
-	}
-};
-
-struct Sphere
-{
-	f32 radius;
-	vec3<f32> center;
-	uint32 matIndex;
-
-	Sphere(const f32 radius, const vec3<f32>& center, const uint32 matIndex)
-		: radius(radius)
-		, center(center)
-		, matIndex(matIndex)
-	{
-	}
-};
-
-struct Plane
-{
-	vec3<f32> normal;
-	f32 d;
-	uint32 matIndex;
-
-	Plane(const vec3<f32>& normal, const f32 d, const uint32 matIndex)
-		: normal(normal)
-		, d(d)
-		, matIndex(matIndex)
-	{
-	}
-};
-
-struct Ray
-{
-	vec3<f32> direction;
-	vec3<f32> origin;
-
-	Ray(const vec3<f32>& direction, const vec3<f32>& origin)
-		: direction(direction)
-		, origin(origin)
-	{
-	}
-};
-
-struct Light
-{
-	vec3<f32> position;
-	vec3<f32> color;
-
-	Light(const vec3<f32>& position, const vec3<f32>& color)
-		: position(position)
-		, color(color)
-	{
-	}
-};
-
-struct Scene
-{
-	vector<Sphere> spheres;
-	vector<Light> lights;
-	vector<Material> materials;
-	vector<Plane> planes;
-};
 
 struct HitInfo
 {
@@ -173,20 +92,20 @@ unique_ptr<HitInfo> raySphereIntersectionTest(const Ray& ray, const Sphere& sphe
 			}
 
 			return make_unique<HitInfo>(true, hitPos, normal, sphere.matIndex, minT);
-		}
-		
+		}		
 	}
 	
 	return make_unique<HitInfo>(false, vec3<f32>(), vec3<f32>(), 0, T_MAX);
 }
 
-unique_ptr<HitInfo> intersectScene(const Scene& scene, const Ray& ray)
+unique_ptr<HitInfo> intersectScene(const Ray& ray)
 {
 	unique_ptr<HitInfo> closestHitInfo = make_unique<HitInfo>(false, vec3<f32>(), vec3<f32>(), 0, T_MAX);
 	
-	for (auto sphere : scene.spheres)
+	const auto sphereCount = Scene::get().getSphereCount();
+	for (auto i = 0U; i < sphereCount; ++i)
 	{
-		auto hitInfo = raySphereIntersectionTest(ray, sphere);
+		auto hitInfo = raySphereIntersectionTest(ray, Scene::get().getSphere(i));
 
 		if (hitInfo->hit && hitInfo->t < closestHitInfo->t)
 		{			
@@ -194,9 +113,10 @@ unique_ptr<HitInfo> intersectScene(const Scene& scene, const Ray& ray)
 		}
 	}
 
-	for (auto plane : scene.planes)
+	const auto planeCount = Scene::get().getPlaneCount();
+	for (auto i = 0U; i < planeCount; ++i)
 	{
-		auto hitInfo = rayPlaneIntersectionTest(ray, plane);
+		auto hitInfo = rayPlaneIntersectionTest(ray, Scene::get().getPlane(i));
 
 		if (hitInfo->hit && hitInfo->t < closestHitInfo->t)
 		{			
@@ -207,66 +127,90 @@ unique_ptr<HitInfo> intersectScene(const Scene& scene, const Ray& ray)
 	return closestHitInfo;
 }
 
-vec3<f32> shade(const Scene& scene, const Ray& ray, const Light& light)
-{
+vec3<f32> shade(const Ray& ray, const Light& light, const std::unique_ptr<HitInfo>& hitInfo)
+{	
 	vec3<f32> colorAccum;
-	
-	const auto hitInfo = intersectScene(scene, ray);
 
-	if (hitInfo->hit)
-	{		
-		auto hitToLight = light.position - hitInfo->position;
-		hitToLight = normalize(hitToLight);
-		const auto viewDir = normalize(hitInfo->position - ray.origin);
-		const auto reflDir = normalize(viewDir - hitInfo->normal * dot(viewDir, hitInfo->normal) * 2.0f);
+	const auto epsilon = 1e-5f;
+	const auto displacedHitPos = hitInfo->position + hitInfo->normal * epsilon;
 
-		const auto diffuseTerm = max(0.0f, dot(hitInfo->normal, hitToLight));
-	    const auto& material = scene.materials[hitInfo->surfaceMatIndex];
-		const auto specularTerm = powf(max(0.0f, dot(reflDir, hitToLight)), material.glossiness);
-		colorAccum += (material.diffuse * light.color) * diffuseTerm;
-		colorAccum += (material.specular * light.color) * specularTerm;	
+	const auto hitToLight = normalize(light.position - displacedHitPos);	
+	const auto viewDir = normalize(displacedHitPos - ray.origin);
+	const auto reflDir = normalize(viewDir - hitInfo->normal * dot(viewDir, hitInfo->normal) * 2.0f);
+
+	const auto diffuseTerm = max(0.0f, dot(hitInfo->normal, hitToLight));
+	const auto& material = Scene::get().getMaterial(hitInfo->surfaceMatIndex);
+	const auto specularTerm = powf(max(0.0f, dot(reflDir, hitToLight)), material.glossiness);
+	colorAccum += (material.diffuse * light.color) * diffuseTerm;
+	colorAccum += (material.specular * light.color) * specularTerm;	
 		
-		auto lightHitInfo = intersectScene(scene, Ray(hitToLight, hitInfo->position));		
+	const auto lightHitInfo = intersectScene(Ray(hitToLight, displacedHitPos));		
+	const auto displacedLightHitPos = lightHitInfo->position + lightHitInfo->normal * epsilon;
 
-		// Shadow test
-		if (lightHitInfo->hit)
-		{																
-			auto visibility = 1.0f;
+	// Shadow test
+	if (lightHitInfo->hit)
+	{																
+		auto visibility = 1.0f;
 
-			const auto prevHitToLight = light.position - hitInfo->position;
-			const auto revHitToLight = light.position - lightHitInfo->position;
-			const auto originalHitToLightMag = length(prevHitToLight);
-			const auto reverseIntersectionHitToLightMag = length(revHitToLight);
+		const auto prevHitToLight = light.position - displacedHitPos;
+		const auto revHitToLight = light.position - displacedLightHitPos;
+		const auto originalHitToLightMag = length(prevHitToLight);
+		const auto reverseIntersectionHitToLightMag = length(revHitToLight);
 			
-			// In order to cancel visibility, i.e. the object is in shadow, we need to make sure that there
-			// exists an object inbetween the original hit object and the light's position
-			const auto objectInBetweenHitInfoAndLight = (originalHitToLightMag - reverseIntersectionHitToLightMag) > 1e-6f;			
-			const auto objectNotBehindLight = dot(normalize(prevHitToLight), normalize(revHitToLight)) >= 1.0f - 1e-6f;
+		// In order to cancel visibility, i.e. the object is in shadow, we need to make sure that there
+		// exists an object inbetween the original hit object and the light's position
+		const auto objectInBetweenHitInfoAndLight = (originalHitToLightMag - reverseIntersectionHitToLightMag) > 1e-6f;			
+		const auto objectNotBehindLight = dot(normalize(prevHitToLight), normalize(revHitToLight)) >= 1.0f - 1e-6f;
 
-			// Enshadow only if the above conditions are satisfied
-			visibility = objectInBetweenHitInfoAndLight && objectNotBehindLight ? 0.0f : 1.0f;
-			colorAccum *= visibility;		
-		}
-		
-		colorAccum += material.ambient;		
-	}
+		// Enshadow only if the above conditions are satisfied
+		visibility = objectInBetweenHitInfoAndLight && objectNotBehindLight ? 0.0f : 1.0f;
+		colorAccum *= visibility;		
+	}			
+
 	return colorAccum;
 }
 
-vec3<f32> trace(const Ray& ray, const Scene& scene)
+vec3<f32> traceForEachLight(const Ray& ray, const std::unique_ptr<HitInfo>& hitInfo)
 {
-	vec3<f32> fragment;
+	if (!hitInfo->hit) return vec3<f32>();
 
-	for (auto light : scene.lights)
+	vec3<f32> fragment = Scene::get().getMaterial(hitInfo->surfaceMatIndex).ambient;
+
+	const auto lightCount = Scene::get().getLightCount();
+	for (auto i = 0U; i < lightCount; ++i)
 	{
-		fragment += shade(scene, ray, light);
+		fragment += shade(ray, Scene::get().getLight(i), hitInfo);
 	}	
 
 	return fragment;
 }
 
-void render(const Scene& scene,
-	        const sint32 renderWidth,
+vec3<f32> trace(const Ray& ray)
+{
+	auto currentRay = ray;
+	auto currentHitInfo = intersectScene(ray);
+	auto currentFragColor = traceForEachLight(currentRay, currentHitInfo);
+	auto reflectionWeight = 1.0f;
+
+	const auto reflectionCount = Scene::get().getReflectionCount();
+
+	for (auto i = 0U; i < reflectionCount; ++i)
+	{
+		if (!currentHitInfo->hit) break;
+
+		reflectionWeight *= Scene::get().getMaterial(currentHitInfo->surfaceMatIndex).reflectivity;
+
+		const auto reflectionDir = normalize(ray.direction - currentHitInfo->normal * dot(ray.direction, currentHitInfo->normal) * 2.0f);
+		const auto epsilon = 1e-3f;
+		currentRay = Ray(reflectionDir, currentHitInfo->position + epsilon * reflectionDir);
+		currentHitInfo = intersectScene(currentRay);
+		currentFragColor += reflectionWeight * traceForEachLight(currentRay, currentHitInfo);
+	}
+
+	return currentFragColor;
+}
+
+void render(const sint32 renderWidth,
 	        const sint32 renderHeight, 
 	        const sint32 targetWidth, 
 	        const sint32 targetHeight, 
@@ -315,13 +259,16 @@ void render(const Scene& scene,
 			currentThreadWork += renderHeight % workPerThread;
 		}
 
-		workers[i] = thread([&scene, &resultImage, &rowsRendered, &renderStopFlag, i, workPerThread, currentThreadWork, renderWidth, invWidth, invHeight, angle, aspect]()
+		workers[i] = thread([&resultImage, &rowsRendered, &renderStopFlag, i, workPerThread, currentThreadWork, renderWidth, invWidth, invHeight, angle, aspect]()
 		{
 			for (auto y = i * workPerThread; y < i * workPerThread + currentThreadWork && !renderStopFlag; ++y)
 			{
 				for (auto x = 0; x < renderWidth; ++x)
-				{
-					if (renderStopFlag) return;
+				{			
+					if ((x == 27 || x == 28) && y == 0)
+					{
+						const auto b = false;
+					}
 
 					const auto xx = (2 * ((x + 0.5f) * invWidth) - 1) * angle * aspect;
 					const auto yy = (1 - 2 * ((y + 0.5f) * invHeight)) * angle;
@@ -330,7 +277,7 @@ void render(const Scene& scene,
 					rayDirection = normalize(rayDirection);
 					Ray ray(rayDirection, vec3<f32>());
 
-					resultImage[y][x] = trace(ray, scene);					
+					resultImage[y][x] = trace(ray);					
 				}
 				rowsRendered++;
 			}
@@ -381,36 +328,9 @@ void render(const Scene& scene,
 	cout << "Finished writing output to file.. " << endl;
 }
 
-unique_ptr<Scene> createScene()
-{
-	// Initialize scene
-	unique_ptr<Scene> scene = make_unique<Scene>();
-
-	scene->lights.emplace_back(vec3<f32>(0.0f, 0.0f, 0.0f), vec3<f32>(0.5f, 0.5f, 0.5f));
-
-	scene->materials.emplace_back(vec3<f32>(0.0f, 0.0f, 0.0f), vec3<f32>(0.0f, 0.0f, 0.0f), vec3<f32>(0.0f, 0.0f, 0.0f), 0.0f);
-	scene->materials.emplace_back(vec3<f32>(0.3f, 0.1f, 0.1f), vec3<f32>(0.9f, 0.3f, 0.3f), vec3<f32>(0.9f, 0.3f, 0.3f), 128.0f);
-	scene->materials.emplace_back(vec3<f32>(0.1f, 0.2f, 0.4f), vec3<f32>(0.3f, 0.5f, 0.9f), vec3<f32>(0.3f, 0.5f, 0.9f), 64.0f);
-	scene->materials.emplace_back(vec3<f32>(0.2f, 0.2f, 0.2f), vec3<f32>(0.5f, 0.5f, 0.5f), vec3<f32>(0.5f, 0.5f, 0.5f), 1.0f);
-	scene->materials.emplace_back(vec3<f32>(0.1f, 0.1f, 0.4f), vec3<f32>(0.3f, 0.3f, 0.9f), vec3<f32>(0.3f, 0.3f, 0.9f), 24.0f);
-
-	scene->spheres.emplace_back(2.0f, vec3<f32>(-3.0f, 1.0f, -9.0f), 1);
-	scene->spheres.emplace_back(1.7f, vec3<f32>(2.3f, 0.0f, -9.0f), 2);
-	scene->spheres.emplace_back(0.5f, vec3<f32>(0.0f, 0.0f, -5.0f), 4);
-
-	scene->planes.emplace_back(vec3<f32>(0.0f, 0.0f, 1.0f), 10.0f, 3);
-	scene->planes.emplace_back(vec3<f32>(0.0f, 1.0f, 0.0f), 2.0f, 3);
-	scene->planes.emplace_back(vec3<f32>(0.0f, -1.0f, 0.0f), 4.0f, 3);
-	scene->planes.emplace_back(vec3<f32>(-1.0f, 0.0f, 0.0f), 4.0f, 3);
-	scene->planes.emplace_back(vec3<f32>(1.0f, 0.0f, 0.0f), 4.0f, 3);
-	
-	return scene;
-}
-
 int CALLBACK WinMain(HINSTANCE instance, HINSTANCE __, LPSTR ___, int ____)
 {			
-	// Initialize Scene
-	auto scene = createScene();
+	// Initialize Scene	
 	auto renderStopFlag = false;
 
 	// Window Parameters
@@ -428,8 +348,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE __, LPSTR ___, int ____)
 
 	// Render Target Parameters
 	auto renderWidth = initRenderWidth;
-	auto renderHeight = initRenderHeight;
-		
+	auto renderHeight = initRenderHeight;	
 	auto rendering = false;
 
 	MSG msg = {};	
@@ -444,9 +363,9 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE __, LPSTR ___, int ____)
 					rendering = true;
 					renderStopFlag = false;
 
-					thread masterRayTraceThread([&scene, &rendering, &renderWidth, &renderHeight, windowHeight, windowWidth, targetWidth, targetHeight, &renderStopFlag, windowHandle]()
+					thread masterRayTraceThread([&rendering, &renderWidth, &renderHeight, windowHeight, windowWidth, targetWidth, targetHeight, &renderStopFlag, windowHandle]()
 					{
-						render(*scene, renderWidth, renderHeight, windowWidth, windowHeight, renderStopFlag, windowHandle, "output_images/last_rendering_" + to_string(renderWidth) + "x" + to_string(renderHeight) + ".bmp");
+						render(renderWidth, renderHeight, windowWidth, windowHeight, renderStopFlag, windowHandle, "output_images/last_rendering_" + to_string(renderWidth) + "x" + to_string(renderHeight) + ".bmp");
 						SetWindowText(windowHandle, ("MinTracer -- Current resolution: " + to_string(renderWidth) + " x " + to_string(renderHeight)).c_str());
 						if (renderWidth <= targetWidth)
 						{
@@ -464,22 +383,17 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE __, LPSTR ___, int ____)
 			case WM_COMMAND:
 			{
 				switch (LOWORD(msg.wParam))
-				{					
-					case GUID_LIGHTS_EDIT: 
-					{
-						CreateLightEditDialog(windowHandle, instance);
-					} break;
-
-					case GUID_OBJECTS_EDIT: 
-					{				
-						CreateObjectsEditDialog(windowHandle, instance);
-					} break;
-
+				{										
 					case GUID_QUIT_SCENE: 
 					{
 						renderStopFlag = true;
 						PostQuitMessage(0);
 					} break; 
+
+					case GUID_REFL_REFR_COUNT_RENDER:
+					{
+						CreateReflectionAndRefractionCountDialog(windowHandle, instance);
+					} break;
 
 					case GUID_RESTART_RENDER:
 					{
@@ -488,58 +402,38 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE __, LPSTR ___, int ____)
 						renderHeight = initRenderHeight; 
 					} break;
 				}
+
+				const auto planeCount = Scene::get().getPlaneCount();
+				for (auto i = 0U; i < planeCount; ++i)
+				{
+					if (LOWORD(msg.wParam) == PLANE_GUID_OFFSET + i)
+					{
+						CreatePlanesEditDialog(windowHandle, instance, i);
+					}
+				}
+
+				const auto sphereCount = Scene::get().getSphereCount();
+				for (auto i = 0U; i < sphereCount; ++i)
+				{
+					if (LOWORD(msg.wParam) == SPHERE_GUID_OFFSET + i)
+					{
+						CreateSpheresEditDialog(windowHandle, instance, i);
+					} 
+				}
+
+				const auto lightCount = Scene::get().getLightCount();
+				for (auto i = 0U; i < lightCount; ++i)
+				{
+					if (LOWORD(msg.wParam) == LIGHT_GUID_OFFSET + i)
+					{
+						CreateLightsEditDialog(windowHandle, instance, i);
+					}
+				}
+
 			} break;
 
 			case WM_HSCROLL:
-			{
-				const auto lo = LOWORD(msg.wParam);
-				const auto hi = HIWORD(msg.wParam);
-
-				if (msg.lParam == (LPARAM)lightPositionX)
-				{
-					scene->lights[0].position.x = (hi - 50) / 10.0f;
-				}
-				else if (msg.lParam == (LPARAM)lightPositionY)
-				{
-					scene->lights[0].position.y = (hi - 50) / 10.0f;
-				}
-				else if (msg.lParam == (LPARAM)lightPositionZ)
-				{
-					scene->lights[0].position.z = (hi - 50) / 10.0f;
-				}		
-				else if (msg.lParam == (LPARAM)lightColorX)
-				{
-					scene->lights[0].color.x = hi/100.0f;
-				}
-				else if (msg.lParam == (LPARAM)lightColorY)
-				{
-					scene->lights[0].color.y = hi/100.0f;
-				}
-				else if (msg.lParam == (LPARAM)lightColorZ)
-				{
-					scene->lights[0].color.z = hi/100.0f;
-				}
-				else if (msg.lParam == (LPARAM)sphereOffsetX)
-				{
-					scene->spheres[0].center.x = (hi - 50)/5.0f;
-				}
-				else if (msg.lParam == (LPARAM)sphereOffsetY)
-				{
-					scene->spheres[0].center.y = (hi - 50)/5.0f;
-				}
-				else if (msg.lParam == (LPARAM)sphereOffsetZ)
-				{
-					scene->spheres[0].center.z = (hi - 50)/5.0f;
-				}
-				else if (msg.lParam == (LPARAM)sphereRadius)
-				{
-					scene->spheres[0].radius = hi/10.0f;
-				}
-				else if (msg.lParam == (LPARAM)sphereGlossiness)
-				{
-					scene->materials[1].glossiness = hi * 2.56f;
-				}
-
+			{				
 				renderStopFlag = true;
 				renderWidth = initRenderWidth;
 				renderHeight = initRenderHeight;
