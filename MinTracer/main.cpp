@@ -20,7 +20,6 @@
 #include "typedefs.h"
 #include "math.h"
 #include "image.h"
-#include "string_utils.h"
 
 static const f32 T_MIN = 0.01f;
 static const f32 T_MAX = 100.0f;
@@ -244,7 +243,7 @@ void render(const sint32 renderWidth,
 			if (currentPercent != completedPerc)
 			{
 				currentPercent = completedPerc;
-				//OutputDebugString(string("Ray Tracing " + to_string(currentPercent) + "% complete\n").c_str());
+				OutputDebugString(string("Ray Tracing " + to_string(currentPercent) + "% complete\n").c_str());
 			}
 		}
 	});
