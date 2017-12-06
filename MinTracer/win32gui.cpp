@@ -109,6 +109,8 @@ LRESULT CALLBACK PlanesEditWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
 	static HWND planeNormalZTrackbar;
 	static HWND planeDistanceTrackbar;
 	static HWND planeGlossinessTrackbar;
+	static HWND planeReflectivityTrackbar;
+	static HWND planeRefractivityTrackbar;
 
 	switch (msg)
 	{
@@ -143,8 +145,22 @@ LRESULT CALLBACK PlanesEditWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
 			CreateWindow("STATIC", "256.0", WS_VISIBLE | WS_CHILD | SS_LEFT, 226, 325, 40, 20, hwnd, NULL, GetModuleHandle(NULL), NULL);
 			CreateWindow("STATIC", "Glos", WS_VISIBLE | WS_CHILD | SS_LEFT, 40, 340, 80, 30, hwnd, NULL, GetModuleHandle(NULL), NULL);
 
+			// Sphere Reflectivity
+			CreateWindow("STATIC", "Plane Reflectivity", WS_VISIBLE | WS_CHILD | SS_LEFT, 105, 390, 130, 30, hwnd, NULL, GetModuleHandle(NULL), NULL);
+			CreateWindow("STATIC", "0.0", WS_VISIBLE | WS_CHILD | SS_LEFT, 80, 414, 40, 20, hwnd, NULL, GetModuleHandle(NULL), NULL);
+			CreateWindow("STATIC", "0.5", WS_VISIBLE | WS_CHILD | SS_LEFT, 158, 414, 40, 20, hwnd, NULL, GetModuleHandle(NULL), NULL);
+			CreateWindow("STATIC", "1.0", WS_VISIBLE | WS_CHILD | SS_LEFT, 240, 414, 40, 20, hwnd, NULL, GetModuleHandle(NULL), NULL);
+			CreateWindow("STATIC", "Refl", WS_VISIBLE | WS_CHILD | SS_LEFT, 40, 430, 80, 30, hwnd, NULL, GetModuleHandle(NULL), NULL);
+
+			// Sphere Reflectivity
+			CreateWindow("STATIC", "Plane Refractivity", WS_VISIBLE | WS_CHILD | SS_LEFT, 105, 480, 130, 30, hwnd, NULL, GetModuleHandle(NULL), NULL);
+			CreateWindow("STATIC", "0.0", WS_VISIBLE | WS_CHILD | SS_LEFT, 80, 503, 40, 20, hwnd, NULL, GetModuleHandle(NULL), NULL);
+			CreateWindow("STATIC", "1.5", WS_VISIBLE | WS_CHILD | SS_LEFT, 158, 503, 40, 20, hwnd, NULL, GetModuleHandle(NULL), NULL);
+			CreateWindow("STATIC", "3.0", WS_VISIBLE | WS_CHILD | SS_LEFT, 240, 503, 40, 20, hwnd, NULL, GetModuleHandle(NULL), NULL);
+			CreateWindow("STATIC", "Refr", WS_VISIBLE | WS_CHILD | SS_LEFT, 40, 520, 80, 30, hwnd, NULL, GetModuleHandle(NULL), NULL);
+
 			// Confirmation button
-			CreateWindow("BUTTON", "OK", WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON, 116, 400, 100, 30, hwnd, (HMENU)BUTTON_ID, GetModuleHandle(NULL), NULL);
+			CreateWindow("BUTTON", "OK", WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON, 116, 570, 100, 30, hwnd, (HMENU)BUTTON_ID, GetModuleHandle(NULL), NULL);
 
 			// Plane Position Trackbars
 			planeNormalXTrackbar = CreateTrackbar(hwnd, GetModuleHandle(NULL), "Plane Normal x", 70, 50, static_cast<uint32>(Scene::get().getPlane(currentPlaneIndex).normal.x * 50.0f + 50));
@@ -156,6 +172,12 @@ LRESULT CALLBACK PlanesEditWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
 
 			// Plane Glossiness Trackbar
 			planeGlossinessTrackbar = CreateTrackbar(hwnd, GetModuleHandle(NULL), "Plane Glossiness", 70, 340, static_cast<uint32>(Scene::get().getMaterial(Scene::get().getPlane(currentPlaneIndex).matIndex).glossiness / 2.56f));
+
+			// Plane Reflectivity Trackbar
+			planeReflectivityTrackbar = CreateTrackbar(hwnd, GetModuleHandle(NULL), "Plane Reflectivity", 70, 430, static_cast<uint32>(Scene::get().getMaterial(Scene::get().getPlane(currentPlaneIndex).matIndex).reflectivity * 100.0f));
+
+			// Plane Refractivity Trackbar
+			planeRefractivityTrackbar = CreateTrackbar(hwnd, GetModuleHandle(NULL), "Plane Refractivity", 70, 520, static_cast<uint32>(Scene::get().getMaterial(Scene::get().getPlane(currentPlaneIndex).matIndex).refractivity * 33.0f));
 		} break;
 
 		case WM_CTLCOLORSTATIC:
@@ -204,6 +226,14 @@ LRESULT CALLBACK PlanesEditWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
 				{
 					Scene::get().getMaterial(Scene::get().getPlane(currentPlaneIndex).matIndex).glossiness = hi * 2.56f;
 				}
+				else if (lParam == (LPARAM)planeReflectivityTrackbar)
+				{
+					Scene::get().getMaterial(Scene::get().getPlane(currentPlaneIndex).matIndex).reflectivity = hi / 100.0f;
+				}
+				else if (lParam == (LPARAM)planeRefractivityTrackbar)
+				{
+					Scene::get().getMaterial(Scene::get().getPlane(currentPlaneIndex).matIndex).refractivity = hi / 33.0f;
+				}
 
 				PostMessage(GetParent(hwnd), WM_HSCROLL, wParam, lParam);
 			}
@@ -222,6 +252,8 @@ LRESULT CALLBACK SpheresEditWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
 	static HWND sphereOffsetZTrackbar;
 	static HWND sphereRadiusTrackbar;
 	static HWND sphereGlossinessTrackbar;	
+	static HWND sphereReflectivityTrackbar;
+	static HWND sphereRefractivityTrackbar;
 
 	switch (msg)
 	{
@@ -256,8 +288,22 @@ LRESULT CALLBACK SpheresEditWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
 			CreateWindow("STATIC", "256.0", WS_VISIBLE | WS_CHILD | SS_LEFT, 226, 325, 40, 20, hwnd, NULL, GetModuleHandle(NULL), NULL);
 			CreateWindow("STATIC", "Glos", WS_VISIBLE | WS_CHILD | SS_LEFT, 40, 340, 80, 30, hwnd, NULL, GetModuleHandle(NULL), NULL);
 
+			// Sphere Reflectivity
+			CreateWindow("STATIC", "Sphere Reflectivity", WS_VISIBLE | WS_CHILD | SS_LEFT, 105, 390, 130, 30, hwnd, NULL, GetModuleHandle(NULL), NULL);
+			CreateWindow("STATIC", "0.0", WS_VISIBLE | WS_CHILD | SS_LEFT, 80, 414, 40, 20, hwnd, NULL, GetModuleHandle(NULL), NULL);
+			CreateWindow("STATIC", "0.5", WS_VISIBLE | WS_CHILD | SS_LEFT, 158, 414, 40, 20, hwnd, NULL, GetModuleHandle(NULL), NULL);
+			CreateWindow("STATIC", "1.0", WS_VISIBLE | WS_CHILD | SS_LEFT, 240, 414, 40, 20, hwnd, NULL, GetModuleHandle(NULL), NULL);
+			CreateWindow("STATIC", "Refl", WS_VISIBLE | WS_CHILD | SS_LEFT, 40, 430, 80, 30, hwnd, NULL, GetModuleHandle(NULL), NULL);
+
+			// Sphere Reflectivity
+			CreateWindow("STATIC", "Sphere Refractivity", WS_VISIBLE | WS_CHILD | SS_LEFT, 105, 480, 130, 30, hwnd, NULL, GetModuleHandle(NULL), NULL);
+			CreateWindow("STATIC", "0.0", WS_VISIBLE | WS_CHILD | SS_LEFT, 80, 503, 40, 20, hwnd, NULL, GetModuleHandle(NULL), NULL);
+			CreateWindow("STATIC", "1.5", WS_VISIBLE | WS_CHILD | SS_LEFT, 158, 503, 40, 20, hwnd, NULL, GetModuleHandle(NULL), NULL);
+			CreateWindow("STATIC", "3.0", WS_VISIBLE | WS_CHILD | SS_LEFT, 240, 503, 40, 20, hwnd, NULL, GetModuleHandle(NULL), NULL);
+			CreateWindow("STATIC", "Refr", WS_VISIBLE | WS_CHILD | SS_LEFT, 40, 520, 80, 30, hwnd, NULL, GetModuleHandle(NULL), NULL);
+
 			// Confirmation button
-			CreateWindow("BUTTON", "OK", WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON, 116, 400, 100, 30, hwnd, (HMENU)BUTTON_ID, GetModuleHandle(NULL), NULL);
+			CreateWindow("BUTTON", "OK", WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON, 116, 570, 100, 30, hwnd, (HMENU)BUTTON_ID, GetModuleHandle(NULL), NULL);
 
 			// Sphere Position Trackbars
 			sphereOffsetXTrackbar = CreateTrackbar(hwnd, GetModuleHandle(NULL), "Sphere x", 70, 50, static_cast<uint32>(Scene::get().getSphere(currentSphereIndex).center.x * 5.0f + 50));
@@ -269,6 +315,13 @@ LRESULT CALLBACK SpheresEditWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
 
 			// Sphere Glossiness Trackbar
 			sphereGlossinessTrackbar = CreateTrackbar(hwnd, GetModuleHandle(NULL), "Sphere Glossiness", 70, 340, static_cast<uint32>(Scene::get().getMaterial(Scene::get().getSphere(currentSphereIndex).matIndex).glossiness / 2.56f));
+
+			// Sphere Reflectivity Trackbar
+			sphereReflectivityTrackbar = CreateTrackbar(hwnd, GetModuleHandle(NULL), "Sphere Reflectivity", 70, 430, static_cast<uint32>(Scene::get().getMaterial(Scene::get().getSphere(currentSphereIndex).matIndex).reflectivity * 100.0f));
+
+			// Sphere Refractivity Trackbar
+			sphereRefractivityTrackbar = CreateTrackbar(hwnd, GetModuleHandle(NULL), "Sphere Refractivity", 70, 520, static_cast<uint32>(Scene::get().getMaterial(Scene::get().getSphere(currentSphereIndex).matIndex).refractivity * 33.0f));
+
 		} break;
 
 		case WM_CTLCOLORSTATIC:
@@ -314,6 +367,14 @@ LRESULT CALLBACK SpheresEditWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
 				{
 					Scene::get().getMaterial(Scene::get().getSphere(currentSphereIndex).matIndex).glossiness = hi * 2.56f;
 				}				
+				else if (lParam == (LPARAM)sphereReflectivityTrackbar)
+				{
+					Scene::get().getMaterial(Scene::get().getSphere(currentSphereIndex).matIndex).reflectivity = hi / 100.0f;
+				}
+				else if (lParam == (LPARAM)sphereRefractivityTrackbar)
+				{
+					Scene::get().getMaterial(Scene::get().getSphere(currentSphereIndex).matIndex).refractivity = hi / 33.0f;
+				}
 
 				PostMessage(GetParent(hwnd), WM_HSCROLL, wParam, lParam);
 			}
@@ -372,9 +433,9 @@ LRESULT CALLBACK LightEditWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
 			CreateWindow("BUTTON", "OK", WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON, 116, 400, 100, 30, hwnd, (HMENU)BUTTON_ID, GetModuleHandle(NULL), NULL);
 
 			// Light Position Trackbars
-			lightPositionXTrackbar = CreateTrackbar(hwnd, GetModuleHandle(NULL), "Light x", 70, 50, static_cast<uint32>(Scene::get().getLight(currentLightIndex).position.x * 5.0f + 50));
-			lightPositionYTrackbar = CreateTrackbar(hwnd, GetModuleHandle(NULL), "Light y", 70, 100, static_cast<uint32>(Scene::get().getLight(currentLightIndex).position.y * 5.0f + 50));
-			lightPositionZTrackbar = CreateTrackbar(hwnd, GetModuleHandle(NULL), "Light z", 70, 150, static_cast<uint32>(Scene::get().getLight(currentLightIndex).position.z * 5.0f + 50));
+			lightPositionXTrackbar = CreateTrackbar(hwnd, GetModuleHandle(NULL), "Light x", 70, 50, static_cast<uint32>(Scene::get().getLight(currentLightIndex).position.x * 2.5f + 50));
+			lightPositionYTrackbar = CreateTrackbar(hwnd, GetModuleHandle(NULL), "Light y", 70, 100, static_cast<uint32>(Scene::get().getLight(currentLightIndex).position.y * 2.5f + 50));
+			lightPositionZTrackbar = CreateTrackbar(hwnd, GetModuleHandle(NULL), "Light z", 70, 150, static_cast<uint32>(Scene::get().getLight(currentLightIndex).position.z * 2.5f + 50));
 
 			// Light Color Trackbars
 			lightColorXTrackbar = CreateTrackbar(hwnd, GetModuleHandle(NULL), "Color x", 70, 250, static_cast<uint32>(Scene::get().getLight(currentLightIndex).color.x * 100.0f));
@@ -408,15 +469,15 @@ LRESULT CALLBACK LightEditWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
 			{
 				if (lParam == (LPARAM)lightPositionXTrackbar)
 				{
-					Scene::get().getLight(currentLightIndex).position.x = (hi - 50) / 5.0f;
+					Scene::get().getLight(currentLightIndex).position.x = (hi - 50) / 2.5f;
 				}
 				else if (lParam == (LPARAM)lightPositionYTrackbar)
 				{
-					Scene::get().getLight(currentLightIndex).position.y = (hi - 50) / 5.0f;
+					Scene::get().getLight(currentLightIndex).position.y = (hi - 50) / 2.5f;
 				}
 				else if (lParam == (LPARAM)lightPositionZTrackbar)
 				{
-					Scene::get().getLight(currentLightIndex).position.z = (hi - 50) / 5.0f;
+					Scene::get().getLight(currentLightIndex).position.z = (hi - 50) / 2.5f;
 				}
 				else if (lParam == (LPARAM)lightColorXTrackbar)
 				{
@@ -549,7 +610,7 @@ HWND WINAPI CreatePlanesEditDialog(HWND hwnd, HINSTANCE hInstance, const uint32 
 
 
 	const auto width = 330;
-	const auto height = 490;
+	const auto height = 690;
 	const auto x = (GetSystemMetrics(SM_CXSCREEN) - width) / 2;
 	const auto y = (GetSystemMetrics(SM_CYSCREEN) - height) / 2;
 
@@ -590,7 +651,7 @@ HWND WINAPI CreateSpheresEditDialog(HWND hwnd, HINSTANCE hInstance, const uint32
 
 
 	const auto width = 330;
-	const auto height = 490;
+	const auto height = 690;
 	const auto x = (GetSystemMetrics(SM_CXSCREEN) - width) / 2;
 	const auto y = (GetSystemMetrics(SM_CYSCREEN) - height) / 2;
 

@@ -19,13 +19,20 @@ struct Material
 	vec3<f32> specular;
 	f32 glossiness;
 	f32 reflectivity;
+	f32 refractivity;
 
-	Material(const vec3<f32>& ambient, const vec3<f32>& diffuse, const vec3<f32>& specular, const f32 glossiness, const f32 reflectivity)
+	Material(const vec3<f32>& ambient, 
+		     const vec3<f32>& diffuse,
+		     const vec3<f32>& specular, 
+		     const f32 glossiness, 
+		     const f32 reflectivity,
+		     const f32 refractivity)
 		: ambient(ambient)
 		, diffuse(diffuse)
 		, specular(specular)
 		, glossiness(glossiness)
 		, reflectivity(reflectivity)
+		, refractivity(refractivity)
 	{
 	}
 };

@@ -28,11 +28,11 @@ using namespace std;
 
 struct HitInfo
 {
-	const bool hit;
-	const vec3<f32> position;
-	const vec3<f32> normal;
-	const uint8 surfaceMatIndex;
-	const f32 t;
+	bool hit;
+	vec3<f32> position;
+	vec3<f32> normal;
+	uint8 surfaceMatIndex;
+	f32 t;
 
 	HitInfo(const bool hit, 
 		    const vec3<f32>& position, 
@@ -48,7 +48,7 @@ struct HitInfo
 	}
 };
 
-unique_ptr<HitInfo> rayPlaneIntersectionTest(const Ray& ray, const Plane& plane)
+HitInfo rayPlaneIntersectionTest(const Ray& ray, const Plane& plane)
 {
 	const auto denom = dot(plane.normal, ray.direction);
 
@@ -58,15 +58,15 @@ unique_ptr<HitInfo> rayPlaneIntersectionTest(const Ray& ray, const Plane& plane)
 		if (t > 0.0f)
 		{
 			const auto hitPos = ray.origin + ray.direction * t;
-			return make_unique<HitInfo>(true, hitPos, plane.normal, plane.matIndex, t);						
+			return HitInfo(true, hitPos, plane.normal, plane.matIndex, t);						
 		}
 		
 	}
 
-	return make_unique<HitInfo>(false, vec3<f32>(), vec3<f32>(), 0, T_MAX);
+	return HitInfo(false, vec3<f32>(), vec3<f32>(), 0, T_MAX);
 }
 
-unique_ptr<HitInfo> raySphereIntersectionTest(const Ray& ray, const Sphere& sphere)
+HitInfo raySphereIntersectionTest(const Ray& ray, const Sphere& sphere)
 {
 	const auto toRay = ray.origin - sphere.center;
 
@@ -79,36 +79,37 @@ unique_ptr<HitInfo> raySphereIntersectionTest(const Ray& ray, const Sphere& sphe
 	{
 		const auto minT = (-b - sqrtf(det)) / 2 * a;
 		const auto maxT = (-b + sqrtf(det)) / 2 * a;
+		const auto selT = minT > 0.0f ? minT : (maxT > 0.0f ? maxT : 0.0f);
 
-		if (minT > 0.0f)
+		if (selT > 0.0f)
 		{
-			const auto hitPos = ray.origin + ray.direction * minT;
+			const auto hitPos = ray.origin + ray.direction * selT;
 			auto normal = normalize(hitPos - sphere.center);
 
-			if (length(toRay) < sphere.radius + T_MIN)
+			if (length(ray.origin - sphere.center) < sphere.radius)
 			{
 				normal = -normal;
 			}
 
-			return make_unique<HitInfo>(true, hitPos, normal, sphere.matIndex, minT);
-		}		
+			return HitInfo(true, hitPos, normal, sphere.matIndex, selT);
+		}				
 	}
 	
-	return make_unique<HitInfo>(false, vec3<f32>(), vec3<f32>(), 0, T_MAX);
+	return HitInfo(false, vec3<f32>(), vec3<f32>(), 0, T_MAX);
 }
 
-unique_ptr<HitInfo> intersectScene(const Ray& ray)
+HitInfo intersectScene(const Ray& ray)
 {
-	unique_ptr<HitInfo> closestHitInfo = make_unique<HitInfo>(false, vec3<f32>(), vec3<f32>(), 0, T_MAX);
+	HitInfo closestHitInfo(false, vec3<f32>(), vec3<f32>(), 0, T_MAX);
 	
 	const auto sphereCount = Scene::get().getSphereCount();
 	for (auto i = 0U; i < sphereCount; ++i)
 	{
 		auto hitInfo = raySphereIntersectionTest(ray, Scene::get().getSphere(i));
 
-		if (hitInfo->hit && hitInfo->t < closestHitInfo->t)
+		if (hitInfo.hit && hitInfo.t < closestHitInfo.t)
 		{			
-			closestHitInfo = move(hitInfo);
+			closestHitInfo = hitInfo;
 		}
 	}
 
@@ -117,37 +118,37 @@ unique_ptr<HitInfo> intersectScene(const Ray& ray)
 	{
 		auto hitInfo = rayPlaneIntersectionTest(ray, Scene::get().getPlane(i));
 
-		if (hitInfo->hit && hitInfo->t < closestHitInfo->t)
+		if (hitInfo.hit && hitInfo.t < closestHitInfo.t)
 		{			
-			closestHitInfo = move(hitInfo);
+			closestHitInfo = hitInfo;
 		}
 	}
 
 	return closestHitInfo;
 }
 
-vec3<f32> shade(const Ray& ray, const Light& light, const std::unique_ptr<HitInfo>& hitInfo)
+vec3<f32> shade(const Ray& ray, const Light& light, const HitInfo& hitInfo)
 {	
 	vec3<f32> colorAccum;
 
 	const auto epsilon = 1e-5f;
-	const auto displacedHitPos = hitInfo->position + hitInfo->normal * epsilon;
+	const auto displacedHitPos = hitInfo.position + hitInfo.normal * epsilon;
 
 	const auto hitToLight = normalize(light.position - displacedHitPos);	
 	const auto viewDir = normalize(displacedHitPos - ray.origin);
-	const auto reflDir = normalize(viewDir - hitInfo->normal * dot(viewDir, hitInfo->normal) * 2.0f);
+	const auto reflDir = normalize(viewDir - hitInfo.normal * dot(viewDir, hitInfo.normal) * 2.0f);
 
-	const auto diffuseTerm = max(0.0f, dot(hitInfo->normal, hitToLight));
-	const auto& material = Scene::get().getMaterial(hitInfo->surfaceMatIndex);
+	const auto diffuseTerm = max(0.0f, dot(hitInfo.normal, hitToLight));
+	const auto& material = Scene::get().getMaterial(hitInfo.surfaceMatIndex);
 	const auto specularTerm = powf(max(0.0f, dot(reflDir, hitToLight)), material.glossiness);
 	colorAccum += (material.diffuse * light.color) * diffuseTerm;
 	colorAccum += (material.specular * light.color) * specularTerm;	
 		
 	const auto lightHitInfo = intersectScene(Ray(hitToLight, displacedHitPos));		
-	const auto displacedLightHitPos = lightHitInfo->position + lightHitInfo->normal * epsilon;
+	const auto displacedLightHitPos = lightHitInfo.position + lightHitInfo.normal * epsilon;
 
 	// Shadow test
-	if (lightHitInfo->hit)
+	if (lightHitInfo.hit)
 	{																
 		auto visibility = 1.0f;
 
@@ -169,11 +170,11 @@ vec3<f32> shade(const Ray& ray, const Light& light, const std::unique_ptr<HitInf
 	return colorAccum;
 }
 
-vec3<f32> traceForEachLight(const Ray& ray, const std::unique_ptr<HitInfo>& hitInfo)
+vec3<f32> traceForEachLight(const Ray& ray, const HitInfo& hitInfo)
 {
-	if (!hitInfo->hit) return vec3<f32>();
+	if (!hitInfo.hit) return vec3<f32>();
 
-	vec3<f32> fragment = Scene::get().getMaterial(hitInfo->surfaceMatIndex).ambient;
+	vec3<f32> fragment = Scene::get().getMaterial(hitInfo.surfaceMatIndex).ambient;
 
 	const auto lightCount = Scene::get().getLightCount();
 	for (auto i = 0U; i < lightCount; ++i)
@@ -185,9 +186,12 @@ vec3<f32> traceForEachLight(const Ray& ray, const std::unique_ptr<HitInfo>& hitI
 }
 
 vec3<f32> trace(const Ray& ray)
-{
-	auto currentRay = ray;
-	auto currentHitInfo = intersectScene(ray);
+{	
+	auto initialRay = ray;
+	auto initialHitInfo = intersectScene(ray);	
+
+	auto currentRay = initialRay;
+	auto currentHitInfo = initialHitInfo;
 	auto currentFragColor = traceForEachLight(currentRay, currentHitInfo);
 	auto reflectionWeight = 1.0f;
 
@@ -195,15 +199,52 @@ vec3<f32> trace(const Ray& ray)
 
 	for (auto i = 0U; i < reflectionCount; ++i)
 	{
-		if (!currentHitInfo->hit) break;
+		if (!currentHitInfo.hit) break;
 
-		reflectionWeight *= Scene::get().getMaterial(currentHitInfo->surfaceMatIndex).reflectivity;
+		reflectionWeight *= Scene::get().getMaterial(currentHitInfo.surfaceMatIndex).reflectivity;
 
-		const auto reflectionDir = normalize(ray.direction - currentHitInfo->normal * dot(ray.direction, currentHitInfo->normal) * 2.0f);
+		const auto reflectionDir = normalize(ray.direction - currentHitInfo.normal * dot(ray.direction, currentHitInfo.normal) * 2.0f);
 		const auto epsilon = 1e-3f;
-		currentRay = Ray(reflectionDir, currentHitInfo->position + epsilon * reflectionDir);
+		currentRay = Ray(reflectionDir, currentHitInfo.position + epsilon * reflectionDir);
 		currentHitInfo = intersectScene(currentRay);
 		currentFragColor += reflectionWeight * traceForEachLight(currentRay, currentHitInfo);
+	}
+
+	const auto refractionCount = Scene::get().getRefractionCount();
+	auto refractionWeight = 1.0f;
+	currentRay = initialRay;	
+	currentHitInfo = initialHitInfo;
+
+	for (auto i = 0U; i < refractionCount; ++i)
+	{
+		if (!currentHitInfo.hit) break;
+
+		refractionWeight *= Scene::get().getMaterial(currentHitInfo.surfaceMatIndex).refractivity > 1.0f ? 0.8f : 0.0f;
+		
+		
+		auto cosi = dot(currentRay.direction, currentHitInfo.normal);				
+
+		auto etaAir = 1.0f;
+		auto etaT = Scene::get().getMaterial(currentHitInfo.surfaceMatIndex).refractivity;
+		auto n = currentHitInfo.normal;
+
+		if (cosi < 0.0f)
+		{
+			cosi = -cosi;
+		}
+		else
+		{
+			std::swap(etaAir, etaT);
+			n = -currentHitInfo.normal;
+		}
+
+		const auto eta = etaAir/etaT;
+		const auto k = 1 - eta * eta * (1 - cosi * cosi);
+		const auto refractionDir = k < 0.0f ? vec3<f32>() : eta * currentRay.direction + (eta * cosi - sqrtf(k)) * n;
+		const auto epsilon = 1e-3f;
+		currentRay = Ray(refractionDir, currentHitInfo.position + epsilon * refractionDir);
+		currentHitInfo = intersectScene(currentRay);
+		currentFragColor += refractionWeight * traceForEachLight(currentRay, currentHitInfo);
 	}
 
 	return currentFragColor;
@@ -264,7 +305,7 @@ void render(const sint32 renderWidth,
 			{
 				for (auto x = 0; x < renderWidth; ++x)
 				{			
-					if ((x == 27 || x == 28) && y == 0)
+					if (x == 112 && y == 97)
 					{
 						const auto b = false;
 					}
@@ -379,6 +420,8 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE __, LPSTR ___, int ____)
 				}			
 			} break;
 
+			// A menu item has been selected
+			// (be it a main or submenu)
 			case WM_COMMAND:
 			{
 				switch (LOWORD(msg.wParam))
@@ -431,6 +474,8 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE __, LPSTR ___, int ____)
 
 			} break;
 
+			// A trackbar from children dialogs was updated
+			// and hence rendering needs to be restarted
 			case WM_HSCROLL:
 			{				
 				renderStopFlag = true;
