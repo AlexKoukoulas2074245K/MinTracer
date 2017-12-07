@@ -185,6 +185,11 @@ vec3<f32> traceForEachLight(const Ray& ray, const HitInfo& hitInfo)
 	return fragment;
 }
 
+f32 fresnel(const Ray& ray, const vec3<f32>& normal, const f32 ior)
+{
+	return powf(1.0f - dot(-ray.direction, normal), Scene::get().getFresnelPower());
+}
+
 vec3<f32> trace(const Ray& ray)
 {	
 	auto initialRay = ray;
@@ -201,13 +206,20 @@ vec3<f32> trace(const Ray& ray)
 	{
 		if (!currentHitInfo.hit) break;
 
-		reflectionWeight *= Scene::get().getMaterial(currentHitInfo.surfaceMatIndex).reflectivity;
-
+		reflectionWeight *= Scene::get().getMaterial(currentHitInfo.surfaceMatIndex).reflectivity > 0.0f ? 0.5f : 0.0f;
+				
 		const auto reflectionDir = normalize(ray.direction - currentHitInfo.normal * dot(ray.direction, currentHitInfo.normal) * 2.0f);
 		const auto epsilon = 1e-3f;
+		auto fresnelKr = 1.0f;
+		
+		if (Scene::get().getMaterial(currentHitInfo.surfaceMatIndex).refractivity > 1.0f)
+		{
+			fresnelKr = fresnel(currentRay, currentHitInfo.normal, Scene::get().getMaterial(currentHitInfo.surfaceMatIndex).refractivity);
+		}		
+
 		currentRay = Ray(reflectionDir, currentHitInfo.position + epsilon * reflectionDir);
-		currentHitInfo = intersectScene(currentRay);
-		currentFragColor += reflectionWeight * traceForEachLight(currentRay, currentHitInfo);
+		currentHitInfo = intersectScene(currentRay);		
+		currentFragColor += (reflectionWeight * fresnelKr) * traceForEachLight(currentRay, currentHitInfo);
 	}
 
 	const auto refractionCount = Scene::get().getRefractionCount();
@@ -219,10 +231,10 @@ vec3<f32> trace(const Ray& ray)
 	{
 		if (!currentHitInfo.hit) break;
 
-		refractionWeight *= Scene::get().getMaterial(currentHitInfo.surfaceMatIndex).refractivity > 1.0f ? 0.8f : 0.0f;
+		refractionWeight *= Scene::get().getMaterial(currentHitInfo.surfaceMatIndex).refractivity > 1.0f ? 0.5f : 0.0f;
 		
 		
-		auto cosi = dot(currentRay.direction, currentHitInfo.normal);				
+		auto cosi = dot(currentRay.direction, currentHitInfo.normal);						
 
 		auto etaAir = 1.0f;
 		auto etaT = Scene::get().getMaterial(currentHitInfo.surfaceMatIndex).refractivity;
@@ -242,9 +254,17 @@ vec3<f32> trace(const Ray& ray)
 		const auto k = 1 - eta * eta * (1 - cosi * cosi);
 		const auto refractionDir = k < 0.0f ? vec3<f32>() : eta * currentRay.direction + (eta * cosi - sqrtf(k)) * n;
 		const auto epsilon = 1e-3f;
+		
+		auto fresnelKt = 1.0f;
+
+		if (Scene::get().getMaterial(currentHitInfo.surfaceMatIndex).reflectivity > 0.0f)
+		{
+			fresnelKt = 1.0f - fresnel(currentRay, currentHitInfo.normal, Scene::get().getMaterial(currentHitInfo.surfaceMatIndex).refractivity);
+		}
+
 		currentRay = Ray(refractionDir, currentHitInfo.position + epsilon * refractionDir);
-		currentHitInfo = intersectScene(currentRay);
-		currentFragColor += refractionWeight * traceForEachLight(currentRay, currentHitInfo);
+		currentHitInfo = intersectScene(currentRay);				
+		currentFragColor += (refractionWeight * fresnelKt) * traceForEachLight(currentRay, currentHitInfo);
 	}
 
 	return currentFragColor;

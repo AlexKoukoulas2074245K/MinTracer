@@ -101,6 +101,7 @@ public:
 	Plane& getPlane(const size_t index);
 	uint32 getReflectionCount() const;
 	uint32 getRefractionCount() const;
+	f32 getFresnelPower() const;
 
 	size_t getSphereCount() const;
 	size_t getLightCount() const;
@@ -109,6 +110,7 @@ public:
 
 	void setReflectionCount(const uint32 reflectionCount);
 	void setRefractionCount(const uint32 refractionCount);
+	void setFresnelPower(const f32 fresnelPower);
 
 private:
 	Scene();
@@ -122,4 +124,6 @@ private:
 
 	uint32 _reflectionCount;
 	uint32 _refractionCount;
+	f32    _fresnelPower;
+
 };

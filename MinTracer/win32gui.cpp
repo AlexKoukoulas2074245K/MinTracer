@@ -92,7 +92,7 @@ void CreateMenus(HWND hwnd)
 	AppendMenuW(hMenubar, MF_POPUP, (UINT_PTR)hEditMenu, L"&Edit");
 
 	// Render Menu
-	AppendMenuW(hRenderMenu, MF_STRING, GUID_REFL_REFR_COUNT_RENDER, L"&Reflection && Refraction Count");
+	AppendMenuW(hRenderMenu, MF_STRING, GUID_REFL_REFR_COUNT_RENDER, L"&Reflection && Refraction");
 	AppendMenuW(hRenderMenu, MF_STRING, GUID_RESTART_RENDER, L"&Restart Rendering");	
 	AppendMenuW(hMenubar, MF_POPUP, (UINT_PTR)hRenderMenu, L"&Render");
 
@@ -490,7 +490,7 @@ LRESULT CALLBACK LightEditWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
 				else if (lParam == (LPARAM)lightColorZTrackbar)
 				{
 					Scene::get().getLight(currentLightIndex).color.z = hi / 100.0f;
-				}
+				}				
 				
 				PostMessage(GetParent(hwnd), WM_HSCROLL, wParam, lParam);
 			}
@@ -505,6 +505,7 @@ LRESULT CALLBACK ReflectionCountWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPAR
 	static const uint32 BUTTON_ID = 10;
 	static HWND reflectionCountTrackbar;
 	static HWND refractionCountTrackbar;
+	static HWND fresnelPowerTrackbar;
 
 	switch (msg)
 	{
@@ -524,12 +525,21 @@ LRESULT CALLBACK ReflectionCountWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPAR
 			CreateWindow("STATIC", "6", WS_VISIBLE | WS_CHILD | SS_LEFT, 255, 126, 40, 20, hwnd, NULL, GetModuleHandle(NULL), NULL);
 			CreateWindow("STATIC", "Count", WS_VISIBLE | WS_CHILD | SS_LEFT, 33, 140, 80, 30, hwnd, NULL, GetModuleHandle(NULL), NULL);
 
+			// Fresnel Power Labels			
+			CreateWindow("STATIC", "Fresnel Power", WS_VISIBLE | WS_CHILD | SS_LEFT, 115, 200, 120, 30, hwnd, NULL, GetModuleHandle(NULL), NULL);
+			CreateWindow("STATIC", "1.0", WS_VISIBLE | WS_CHILD | SS_LEFT, 80, 226, 40, 20, hwnd, NULL, GetModuleHandle(NULL), NULL);
+			CreateWindow("STATIC", "3.0", WS_VISIBLE | WS_CHILD | SS_LEFT, 160, 226, 20, 20, hwnd, NULL, GetModuleHandle(NULL), NULL);
+			CreateWindow("STATIC", "5.0", WS_VISIBLE | WS_CHILD | SS_LEFT, 248, 226, 40, 20, hwnd, NULL, GetModuleHandle(NULL), NULL);
+			CreateWindow("STATIC", "Count", WS_VISIBLE | WS_CHILD | SS_LEFT, 33, 240, 80, 30, hwnd, NULL, GetModuleHandle(NULL), NULL);
+
 			// Confirmation button
-			CreateWindow("BUTTON", "OK", WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON, 116, 200, 100, 30, hwnd, (HMENU)BUTTON_ID, GetModuleHandle(NULL), NULL);
+			CreateWindow("BUTTON", "OK", WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON, 116, 290, 100, 30, hwnd, (HMENU)BUTTON_ID, GetModuleHandle(NULL), NULL);
 
 			// Reflection Count Trackbars
 			reflectionCountTrackbar = CreateTrackbar(hwnd, GetModuleHandle(NULL), "Reflection", 70, 50, Scene::get().getReflectionCount(), 6);
 			refractionCountTrackbar = CreateTrackbar(hwnd, GetModuleHandle(NULL), "Refraction", 70, 140, Scene::get().getRefractionCount(), 6);
+			fresnelPowerTrackbar = CreateTrackbar(hwnd, GetModuleHandle(NULL), "Fresnel", 70, 240, static_cast<uint32>((Scene::get().getFresnelPower() - 1) * 25), 100);
+
 		} break;
 
 		case WM_CTLCOLORSTATIC:
@@ -562,6 +572,10 @@ LRESULT CALLBACK ReflectionCountWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPAR
 				else if (lParam == (LPARAM)refractionCountTrackbar)
 				{
 					Scene::get().setRefractionCount(hi);
+				}
+				else if (lParam == (LPARAM)fresnelPowerTrackbar)
+				{
+					Scene::get().setFresnelPower(hi/25.0f + 1);
 				}
 
 				PostMessage(GetParent(hwnd), WM_HSCROLL, wParam, lParam);
@@ -731,7 +745,7 @@ HWND WINAPI CreateReflectionAndRefractionCountDialog(HWND hwnd, HINSTANCE hInsta
 
 
 	const auto width = 330;
-	const auto height = 290;
+	const auto height = 370;
 	const auto x = (GetSystemMetrics(SM_CXSCREEN) - width) / 2;
 	const auto y = (GetSystemMetrics(SM_CYSCREEN) - height) / 2;
 
