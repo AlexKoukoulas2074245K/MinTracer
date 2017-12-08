@@ -9,6 +9,8 @@
 #include "scene.h"
 
 // Remote Headers
+#include <thread>
+#include <fstream>
 
 Scene& Scene::get()
 {
@@ -41,6 +43,68 @@ f32 Scene::getFresnelPower() const { return _fresnelPower; }
 void Scene::setReflectionCount(const uint32 reflectionCount) { _reflectionCount = reflectionCount; }
 void Scene::setRefractionCount(const uint32 refractionCount) { _refractionCount = refractionCount; }
 void Scene::setFresnelPower(const f32 fresnelPower) { _fresnelPower = fresnelPower; }
+
+void Scene::saveScene(const std::string& filePath, win32::io_result_callback callbackOnCompletion)
+{
+	auto savingThread = std::thread([filePath, callbackOnCompletion, this]() 
+	{
+		std::ofstream outputFile(filePath, std::ios::out);
+
+		if (outputFile.good())
+		{	
+			outputFile << this->toString();
+			callbackOnCompletion(win32::IO_DIALOG_RESULT_TYPE::SUCCESS);
+		}
+		else
+		{
+			callbackOnCompletion(win32::IO_DIALOG_RESULT_TYPE::FAILURE);
+		}
+	});
+
+	savingThread.detach();
+}
+
+void Scene::openScene(const std::string& filePath, win32::io_result_callback callbackOnCompletion)
+{
+	const auto b = false;
+}
+
+std::string Scene::toString() const
+{
+	std::stringstream result;
+	result << "#Reflection Count\n";
+	result << _reflectionCount << "\n";
+	result << "#Refraction Count\n";
+	result << _refractionCount << "\n";
+	result << "#Fresnel Power\n";
+	result << _fresnelPower << "\n";
+
+	result << "#Materials\n";
+	for (const auto& material: _materials)
+	{
+		result << material.toString() << "\n";
+	}
+
+	result << "#Lights\n";	
+	for (const auto& light : _lights)
+	{
+		result << light->toString() << "\n";
+	}
+
+	result << "#Spheres\n";	
+	for (const auto& sphere: _spheres)
+	{
+		result << sphere.toString() << "\n";
+	}
+	
+	result << "#Planes\n";
+	for (const auto& plane : _planes)
+	{
+		result << plane.toString() << "\n";
+	}
+
+	return result.str();
+}
 
 void Scene::constructScene()
 {

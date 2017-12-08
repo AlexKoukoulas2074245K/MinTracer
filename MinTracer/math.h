@@ -5,6 +5,8 @@
 
 #pragma once
 #include <cmath>
+#include <sstream>
+
 #include "typedefs.h"
 
 const f32 PI = 3.1415927f;
@@ -29,6 +31,8 @@ public:
 	bool operator != (const vec3<T>& v) { return !(*this == v); }
 	vec3<T>& operator *= (const T& scalar) { x *= scalar; y *= scalar; z *= scalar; return *this; }
 	vec3<T>& operator /= (const T& scalar) { x /= scalar; y /= scalar; z /= scalar; return *this; }
+
+	std::string toString() const { std::stringstream result; result << x << "," << y << "," << z; return result.str(); }
 };
 
 template<typename T>

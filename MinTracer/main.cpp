@@ -4,7 +4,7 @@
 /**********************************************************************/
 
 #if defined(DEBUG) || defined(_DEBUG)
-#include <vld.h>
+//#include <vld.h>
 #endif
 
 #include <iostream>
@@ -253,7 +253,7 @@ vec3<f32> trace(const Ray& ray)
 		}
 		else
 		{
-			std::swap(etaAir, etaT);
+			swap(etaAir, etaT);
 			n = -currentHitInfo.normal;
 		}
 
@@ -411,12 +411,14 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE __, LPSTR ___, int ____)
 	const auto initRenderHeight = windowHeight / 8;
 
 	// Initialize Window
-	auto windowHandle = CreateMainWindow(instance, windowWidth, windowHeight, "MinTracer");	
+	auto windowHandle = win32::CreateMainWindow(instance, windowWidth, windowHeight, "MinTracer");	
 
 	// Render Target Parameters
 	auto renderWidth = initRenderWidth;
 	auto renderHeight = initRenderHeight;	
 	auto rendering = false;
+	auto saveScene = false;
+	auto openScene = false;
 
 	MSG msg = {};	
 	while (msg.message != WM_QUIT )
@@ -453,52 +455,28 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE __, LPSTR ___, int ____)
 			{
 				switch (LOWORD(msg.wParam))
 				{							
-					case GUID_OPEN_SCENE:
+					case win32::GUID_OPEN_SCENE:
 					{
-						/*
-						OPENFILENAME ofn = {};
-
-						CHAR szCurrentPath[MAX_PATH + 1];
-
-						GetModuleFileName(NULL, szCurrentPath, MAX_PATH + 1);
-
-						ofn.lStructSize = sizeof(OPENFILENAME);
-						ofn.hwndOwner = windowHandle;
-						ofn.lpstrFilter = "Scene Files (*.scn)\0*.scn\0";
-						ofn.lpstrFile = "myscene.scn";
-						ofn.nMaxFile = MAX_PATH;
-						ofn.Flags = OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_HIDEREADONLY;
-						ofn.lpstrInitialDir = szCurrentPath;
-						ofn.lpstrDefExt = "scn";
-						ofn.lpstrTitle = "Save Scene As";
-
-						if (GetOpenFileName(&ofn))
-						{
-						OutputDebugString(ofn.lpstrFileTitle);
-						OutputDebugString("\n");
-						OutputDebugString(ofn.lpstrFile);
-						OutputDebugString("\n");
-						}
-						*/
+						openScene = true;
 					} break;
 
-					case GUID_SAVE_SCENE:
-					{
-						
+					case win32::GUID_SAVE_SCENE:
+					{						
+						saveScene = true;
 					} break;
 
-					case GUID_QUIT_SCENE: 
+					case win32::GUID_QUIT_SCENE: 
 					{
 						renderStopFlag = true;
 						PostQuitMessage(0);
 					} break; 
 
-					case GUID_REFL_REFR_COUNT_RENDER:
+					case win32::GUID_REFL_REFR_COUNT_RENDER:
 					{
-						CreateReflectionAndRefractionCountDialog(windowHandle, instance);
+						win32::CreateReflectionAndRefractionCountDialog(windowHandle, instance);
 					} break;
 
-					case GUID_RESTART_RENDER:
+					case win32::GUID_RESTART_RENDER:
 					{
 						renderStopFlag = true;
 						renderWidth = initRenderWidth; 
@@ -509,27 +487,27 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE __, LPSTR ___, int ____)
 				const auto planeCount = Scene::get().getPlaneCount();
 				for (auto i = 0U; i < planeCount; ++i)
 				{
-					if (LOWORD(msg.wParam) == PLANE_GUID_OFFSET + i)
+					if (LOWORD(msg.wParam) == win32::PLANE_GUID_OFFSET + i)
 					{
-						CreatePlanesEditDialog(windowHandle, instance, i);
+						win32::CreatePlanesEditDialog(windowHandle, instance, i);
 					}
 				}
 
 				const auto sphereCount = Scene::get().getSphereCount();
 				for (auto i = 0U; i < sphereCount; ++i)
 				{
-					if (LOWORD(msg.wParam) == SPHERE_GUID_OFFSET + i)
+					if (LOWORD(msg.wParam) == win32::SPHERE_GUID_OFFSET + i)
 					{
-						CreateSpheresEditDialog(windowHandle, instance, i);
+						win32::CreateSpheresEditDialog(windowHandle, instance, i);
 					} 
 				}
 
 				const auto lightCount = Scene::get().getLightCount();
 				for (auto i = 0U; i < lightCount; ++i)
 				{
-					if (LOWORD(msg.wParam) == LIGHT_GUID_OFFSET + i)
+					if (LOWORD(msg.wParam) == win32::LIGHT_GUID_OFFSET + i)
 					{
-						CreateLightsEditDialog(windowHandle, instance, i);
+						win32::CreateLightsEditDialog(windowHandle, instance, i);
 					}
 				}
 
@@ -555,6 +533,33 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE __, LPSTR ___, int ____)
 		if (renderWidth <= targetWidth && !rendering)
 		{
 			InvalidateRect(windowHandle, NULL, TRUE);
+		}
+
+		if (saveScene)
+		{
+			win32::CreateIODialog(windowHandle, instance, win32::IO_DIALOG_TYPE::SAVE_AS, [](const win32::IO_DIALOG_RESULT_TYPE resultType)
+			{
+				switch (resultType)
+				{
+					case win32::SUCCESS:
+					{
+						MessageBox(NULL, "Scene successfully saved", "Save Scene", MB_OK);
+					} break;
+
+					case win32::FAILURE:
+					{
+						MessageBox(NULL, "Error: Could not save scene", "Error", MB_OK | MB_ICONERROR);
+					} break;
+				}
+				
+			});
+			saveScene = false;
+		}
+
+		if (openScene)
+		{
+			win32::CreateIODialog(windowHandle, instance, win32::IO_DIALOG_TYPE::OPEN, nullptr);
+			openScene = false;
 		}
 	}		
 

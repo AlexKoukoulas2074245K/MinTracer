@@ -58,9 +58,9 @@ void CreateMenus(HWND hwnd)
 	HMENU hPlanesSubMenu = CreatePopupMenu();
 
 	// Scene Menu	
-	AppendMenuW(hSceneMenu, MF_STRING, GUID_OPEN_SCENE, L"&Open");
-	AppendMenuW(hSceneMenu, MF_STRING, GUID_SAVE_SCENE, L"&Save As..");
-	AppendMenuW(hSceneMenu, MF_STRING, GUID_QUIT_SCENE, L"&Quit");
+	AppendMenuW(hSceneMenu, MF_STRING, win32::GUID_OPEN_SCENE, L"&Open");
+	AppendMenuW(hSceneMenu, MF_STRING, win32::GUID_SAVE_SCENE, L"&Save As..");
+	AppendMenuW(hSceneMenu, MF_STRING, win32::GUID_QUIT_SCENE, L"&Quit");
 	AppendMenuW(hMenubar, MF_POPUP, (UINT_PTR)hSceneMenu, L"&Scene");
 
 	// Lights Submenu
@@ -69,7 +69,7 @@ void CreateMenus(HWND hwnd)
 	for (auto i = 0U; i < lightCount; ++i)
 	{
 		std::wstring lightEntryName = (Scene::get().getLight(i).getLightType() == Light::DIR_LIGHT ? L"&Light " : L"&PointLight ") + std::to_wstring(i);
-		AppendMenuW(hLightsSubMenu, MF_STRING, LIGHT_GUID_OFFSET + i, lightEntryName.c_str());
+		AppendMenuW(hLightsSubMenu, MF_STRING, win32::LIGHT_GUID_OFFSET + i, lightEntryName.c_str());
 	}
 
 	// Spheres Submenu
@@ -78,7 +78,7 @@ void CreateMenus(HWND hwnd)
 	for (auto i = 0U; i < sphereCount; ++i)
 	{
 		std::wstring sphereEntryName = L"&Sphere " + std::to_wstring(i);
-		AppendMenuW(hSpheresSubMenu, MF_STRING, SPHERE_GUID_OFFSET + i, sphereEntryName.c_str());
+		AppendMenuW(hSpheresSubMenu, MF_STRING, win32::SPHERE_GUID_OFFSET + i, sphereEntryName.c_str());
 	}	
 
 	// Plane Submenu
@@ -87,15 +87,15 @@ void CreateMenus(HWND hwnd)
 	for (auto i = 0U; i < planeCount; ++i)
 	{
 		std::wstring planeEntryName = L"&Plane " + std::to_wstring(i);
-		AppendMenuW(hPlanesSubMenu, MF_STRING, PLANE_GUID_OFFSET + i, planeEntryName.c_str());
+		AppendMenuW(hPlanesSubMenu, MF_STRING, win32::PLANE_GUID_OFFSET + i, planeEntryName.c_str());
 	}
 
 	// Edit Menu
 	AppendMenuW(hMenubar, MF_POPUP, (UINT_PTR)hEditMenu, L"&Edit");
 
 	// Render Menu
-	AppendMenuW(hRenderMenu, MF_STRING, GUID_REFL_REFR_COUNT_RENDER, L"&Reflection && Refraction");
-	AppendMenuW(hRenderMenu, MF_STRING, GUID_RESTART_RENDER, L"&Restart Rendering");	
+	AppendMenuW(hRenderMenu, MF_STRING, win32::GUID_REFL_REFR_COUNT_RENDER, L"&Reflection && Refraction");
+	AppendMenuW(hRenderMenu, MF_STRING, win32::GUID_RESTART_RENDER, L"&Restart Rendering");	
 	AppendMenuW(hMenubar, MF_POPUP, (UINT_PTR)hRenderMenu, L"&Render");
 
 	// Master Menu Bar
@@ -626,7 +626,7 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 	return DefWindowProc(hwnd, msg, wParam, lParam);
 }
 
-HWND WINAPI CreatePlanesEditDialog(HWND hwnd, HINSTANCE hInstance, const uint32 planeIndex)
+HWND WINAPI win32::CreatePlanesEditDialog(HWND hwnd, HINSTANCE hInstance, const uint32 planeIndex)
 {
 	currentPlaneIndex = planeIndex;
 
@@ -667,7 +667,7 @@ HWND WINAPI CreatePlanesEditDialog(HWND hwnd, HINSTANCE hInstance, const uint32 
 	return hwndPlanesEdit;
 }
 
-HWND WINAPI CreateSpheresEditDialog(HWND hwnd, HINSTANCE hInstance, const uint32 sphereIndex)
+HWND WINAPI win32::CreateSpheresEditDialog(HWND hwnd, HINSTANCE hInstance, const uint32 sphereIndex)
 {
 	currentSphereIndex = sphereIndex;
 
@@ -708,7 +708,7 @@ HWND WINAPI CreateSpheresEditDialog(HWND hwnd, HINSTANCE hInstance, const uint32
 	return hwndSpheresEdit;
 }
 
-HWND WINAPI CreateLightsEditDialog(HWND hwnd, HINSTANCE hInstance, const uint32 lightIndex)
+HWND WINAPI win32::CreateLightsEditDialog(HWND hwnd, HINSTANCE hInstance, const uint32 lightIndex)
 {
 	currentLightIndex = lightIndex;
 
@@ -749,7 +749,7 @@ HWND WINAPI CreateLightsEditDialog(HWND hwnd, HINSTANCE hInstance, const uint32 
 	return hwndLightEdit;
 }
 
-HWND WINAPI CreateReflectionAndRefractionCountDialog(HWND hwnd, HINSTANCE hInstance)
+HWND WINAPI win32::CreateReflectionAndRefractionCountDialog(HWND hwnd, HINSTANCE hInstance)
 {
 	WNDCLASS wc = {};
 	wc.cbClsExtra = 0;
@@ -788,7 +788,7 @@ HWND WINAPI CreateReflectionAndRefractionCountDialog(HWND hwnd, HINSTANCE hInsta
 	return hwndReflectionRefractionCount;
 }
 
-HWND WINAPI CreateMainWindow(HINSTANCE instance, const sint32 windowWidth, const sint32 windowHeight, const std::string& title)
+HWND WINAPI win32::CreateMainWindow(HINSTANCE instance, const sint32 windowWidth, const sint32 windowHeight, const std::string& title)
 {
 	// Window Registration
 	WNDCLASS wc = {};
@@ -832,4 +832,38 @@ HWND WINAPI CreateMainWindow(HINSTANCE instance, const sint32 windowWidth, const
 	UpdateWindow(handle);
 
 	return handle;
+}
+
+void win32::CreateIODialog(HWND hwnd, HINSTANCE instance, const IO_DIALOG_TYPE ioDialogType, io_result_callback callbackOnCompletion)
+{
+	OPENFILENAME ofn = {};
+
+	CHAR szCurrentPath[MAX_PATH + 1];
+	CHAR szFileFullPath[MAX_PATH + 1] = "";
+	CHAR szFileTitle[MAX_PATH + 1] = "scene.scn";
+	CHAR szCustomFilter[MAX_PATH + 1] = "Scene Files (*.scn)\0*.scn\0";
+	GetModuleFileName(NULL, szCurrentPath, MAX_PATH + 1);
+
+	ofn.Flags = OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_HIDEREADONLY;
+	ofn.hInstance = instance;
+	ofn.hwndOwner = hwnd;
+	ofn.lpstrFile = szFileFullPath;
+	ofn.lpstrFileTitle = szFileTitle;
+	ofn.lpstrFilter = szCustomFilter;
+	ofn.lpstrInitialDir = szCurrentPath;
+	ofn.lpstrTitle = ioDialogType == SAVE_AS ? "Save Scene As" : "Open Scene";
+	ofn.lStructSize = sizeof(OPENFILENAME);
+	ofn.lpstrDefExt = "scn";
+	ofn.nMaxCustFilter = MAX_PATH;
+	ofn.nMaxFile = MAX_PATH;
+	ofn.nMaxFileTitle = MAX_PATH;
+
+	if (ioDialogType == SAVE_AS && GetSaveFileName(&ofn))
+	{		
+		Scene::get().saveScene(szFileFullPath, callbackOnCompletion);
+	}
+	else if (ioDialogType == OPEN && GetOpenFileName(&ofn))
+	{
+		Scene::get().openScene(szFileFullPath, callbackOnCompletion);
+	}
 }

@@ -7,10 +7,12 @@
 
 // Local Headers
 #include "math.h"
+#include "win32gui.h"
 
 // Remote Headers
 #include <vector>
 #include <memory>
+#include <sstream>
 
 struct Material
 {
@@ -35,6 +37,14 @@ struct Material
 		, refractivity(refractivity)
 	{
 	}
+
+	std::string toString() const
+	{
+		std::stringstream result;
+		result << ambient.toString() << " " << diffuse.toString() << " " << specular.toString() << " " 
+			   << glossiness << " " << reflectivity << " " << refractivity;
+		return result.str();
+	}
 };
 
 struct Sphere
@@ -48,6 +58,13 @@ struct Sphere
 		, center(center)
 		, matIndex(matIndex)
 	{
+	}
+
+	std::string toString() const
+	{
+		std::stringstream result;
+		result << radius << " " << center.toString() << " " << matIndex;
+		return result.str();
 	}
 };
 
@@ -63,6 +80,13 @@ struct Plane
 		, matIndex(matIndex)
 	{
 	}
+
+	std::string toString() const
+	{
+		std::stringstream result;
+		result << normal.toString() << " " << d << " " << matIndex;
+		return result.str();
+	}
 };
 
 struct Ray
@@ -74,6 +98,13 @@ struct Ray
 		: direction(direction)
 		, origin(origin)
 	{
+	}
+
+	std::string toString() const
+	{
+		std::stringstream result;
+		result << direction.toString() << " " << origin.toString();
+		return result.str();
 	}
 };
 
@@ -97,6 +128,13 @@ struct Light
 	virtual ~Light(){}
 
 	virtual LightType getLightType() const { return DIR_LIGHT; }
+
+	virtual std::string toString() const
+	{
+		std::stringstream result;
+		result << position.toString() << " " << color.toString();
+		return result.str();
+	}
 };
 
 struct PointLight: public Light
@@ -110,6 +148,13 @@ struct PointLight: public Light
 	}
 
 	LightType getLightType() const override { return POINT_LIGHT; }
+
+	std::string toString() const override
+	{
+		std::stringstream result;
+		result << Light::toString() << " " << radius;
+		return result.str();
+	}
 };
 
 class Scene final
@@ -135,6 +180,11 @@ public:
 	void setRefractionCount(const uint32 refractionCount);
 	void setFresnelPower(const f32 fresnelPower);
 
+	void saveScene(const std::string& filePath, win32::io_result_callback callbackOnCompletion);
+	void openScene(const std::string& filePath, win32::io_result_callback callbackOnCompletion);
+
+	std::string toString() const;
+	
 private:
 	Scene();
 	void constructScene();
