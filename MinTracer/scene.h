@@ -10,7 +10,7 @@
 
 // Remote Headers
 #include <vector>
-
+#include <memory>
 
 struct Material
 {
@@ -78,7 +78,13 @@ struct Ray
 };
 
 struct Light
-{
+{	
+	// Hack I know
+	enum LightType
+	{
+		DIR_LIGHT, POINT_LIGHT
+	};
+
 	vec3<f32> position;
 	vec3<f32> color;
 
@@ -87,6 +93,23 @@ struct Light
 		, color(color)
 	{
 	}
+
+	virtual ~Light(){}
+
+	virtual LightType getLightType() const { return DIR_LIGHT; }
+};
+
+struct PointLight: public Light
+{
+	f32 radius;
+
+	PointLight(const vec3<f32>& position, const vec3<f32>& color, const f32 radius)
+		: Light(position, color)
+		, radius(radius)
+	{
+	}
+
+	LightType getLightType() const override { return POINT_LIGHT; }
 };
 
 class Scene final
@@ -117,8 +140,8 @@ private:
 	void constructScene();
 
 private:
+	std::vector<std::unique_ptr<Light>> _lights;	
 	std::vector<Sphere> _spheres;
-	std::vector<Light> _lights;
 	std::vector<Material> _materials;
 	std::vector<Plane> _planes;
 

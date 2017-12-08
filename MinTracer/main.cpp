@@ -137,13 +137,20 @@ vec3<f32> shade(const Ray& ray, const Light& light, const HitInfo& hitInfo)
 	const auto hitToLight = normalize(light.position - displacedHitPos);	
 	const auto viewDir = normalize(displacedHitPos - ray.origin);
 	const auto reflDir = normalize(viewDir - hitInfo.normal * dot(viewDir, hitInfo.normal) * 2.0f);
-
+	
 	const auto diffuseTerm = max(0.0f, dot(hitInfo.normal, hitToLight));
 	const auto& material = Scene::get().getMaterial(hitInfo.surfaceMatIndex);
 	const auto specularTerm = powf(max(0.0f, dot(reflDir, hitToLight)), material.glossiness);
-	colorAccum += (material.diffuse * light.color) * diffuseTerm;
+
+	colorAccum += (material.diffuse * light.color) * diffuseTerm;	
+	if (light.getLightType() == Light::POINT_LIGHT)
+	{				
+		colorAccum /= 4 * PI * static_cast<const PointLight&>(light).radius;
+	}
+
 	colorAccum += (material.specular * light.color) * specularTerm;	
-		
+	
+
 	const auto lightHitInfo = intersectScene(Ray(hitToLight, displacedHitPos));		
 	const auto displacedLightHitPos = lightHitInfo.position + lightHitInfo.normal * epsilon;
 
@@ -445,7 +452,41 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE __, LPSTR ___, int ____)
 			case WM_COMMAND:
 			{
 				switch (LOWORD(msg.wParam))
-				{										
+				{							
+					case GUID_OPEN_SCENE:
+					{
+						/*
+						OPENFILENAME ofn = {};
+
+						CHAR szCurrentPath[MAX_PATH + 1];
+
+						GetModuleFileName(NULL, szCurrentPath, MAX_PATH + 1);
+
+						ofn.lStructSize = sizeof(OPENFILENAME);
+						ofn.hwndOwner = windowHandle;
+						ofn.lpstrFilter = "Scene Files (*.scn)\0*.scn\0";
+						ofn.lpstrFile = "myscene.scn";
+						ofn.nMaxFile = MAX_PATH;
+						ofn.Flags = OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_HIDEREADONLY;
+						ofn.lpstrInitialDir = szCurrentPath;
+						ofn.lpstrDefExt = "scn";
+						ofn.lpstrTitle = "Save Scene As";
+
+						if (GetOpenFileName(&ofn))
+						{
+						OutputDebugString(ofn.lpstrFileTitle);
+						OutputDebugString("\n");
+						OutputDebugString(ofn.lpstrFile);
+						OutputDebugString("\n");
+						}
+						*/
+					} break;
+
+					case GUID_SAVE_SCENE:
+					{
+						
+					} break;
+
 					case GUID_QUIT_SCENE: 
 					{
 						renderStopFlag = true;

@@ -14,7 +14,9 @@
 
 #include <string>
 
-const uint32 GUID_QUIT_SCENE = 11;
+const uint32 GUID_OPEN_SCENE = 11;
+const uint32 GUID_SAVE_SCENE = 12;
+const uint32 GUID_QUIT_SCENE = 13;
 const uint32 GUID_REFL_REFR_COUNT_RENDER = 31; 
 const uint32 GUID_RESTART_RENDER = 32;
 const uint32 LIGHT_GUID_OFFSET = 100;

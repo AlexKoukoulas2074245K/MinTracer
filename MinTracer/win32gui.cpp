@@ -58,6 +58,8 @@ void CreateMenus(HWND hwnd)
 	HMENU hPlanesSubMenu = CreatePopupMenu();
 
 	// Scene Menu	
+	AppendMenuW(hSceneMenu, MF_STRING, GUID_OPEN_SCENE, L"&Open");
+	AppendMenuW(hSceneMenu, MF_STRING, GUID_SAVE_SCENE, L"&Save As..");
 	AppendMenuW(hSceneMenu, MF_STRING, GUID_QUIT_SCENE, L"&Quit");
 	AppendMenuW(hMenubar, MF_POPUP, (UINT_PTR)hSceneMenu, L"&Scene");
 
@@ -66,7 +68,7 @@ void CreateMenus(HWND hwnd)
 	const auto lightCount = Scene::get().getLightCount();
 	for (auto i = 0U; i < lightCount; ++i)
 	{
-		std::wstring lightEntryName = L"&Light " + std::to_wstring(i);
+		std::wstring lightEntryName = (Scene::get().getLight(i).getLightType() == Light::DIR_LIGHT ? L"&Light " : L"&PointLight ") + std::to_wstring(i);
 		AppendMenuW(hLightsSubMenu, MF_STRING, LIGHT_GUID_OFFSET + i, lightEntryName.c_str());
 	}
 
@@ -394,6 +396,7 @@ LRESULT CALLBACK LightEditWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
 	static HWND lightColorXTrackbar;
 	static HWND lightColorYTrackbar;
 	static HWND lightColorZTrackbar;
+	static HWND pointLightRadiusTrackbar;
 
 	switch (msg)
 	{
@@ -430,7 +433,7 @@ LRESULT CALLBACK LightEditWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
 			CreateWindow("STATIC", "b", WS_VISIBLE | WS_CHILD | SS_LEFT, 60, 350, 80, 30, hwnd, NULL, GetModuleHandle(NULL), NULL);
 
 			// Confirmation button
-			CreateWindow("BUTTON", "OK", WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON, 116, 400, 100, 30, hwnd, (HMENU)BUTTON_ID, GetModuleHandle(NULL), NULL);
+			CreateWindow("BUTTON", "OK", WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON, 116, 480, 100, 30, hwnd, (HMENU)BUTTON_ID, GetModuleHandle(NULL), NULL);
 
 			// Light Position Trackbars
 			lightPositionXTrackbar = CreateTrackbar(hwnd, GetModuleHandle(NULL), "Light x", 70, 50, static_cast<uint32>(Scene::get().getLight(currentLightIndex).position.x * 2.5f + 50));
@@ -441,6 +444,21 @@ LRESULT CALLBACK LightEditWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
 			lightColorXTrackbar = CreateTrackbar(hwnd, GetModuleHandle(NULL), "Color x", 70, 250, static_cast<uint32>(Scene::get().getLight(currentLightIndex).color.x * 100.0f));
 			lightColorYTrackbar = CreateTrackbar(hwnd, GetModuleHandle(NULL), "Color y", 70, 300, static_cast<uint32>(Scene::get().getLight(currentLightIndex).color.y * 100.0f));
 			lightColorZTrackbar = CreateTrackbar(hwnd, GetModuleHandle(NULL), "Color z", 70, 350, static_cast<uint32>(Scene::get().getLight(currentLightIndex).color.z * 100.0f));
+
+			// Point Light Radius
+			if (Scene::get().getLight(currentLightIndex).getLightType() == Light::POINT_LIGHT)
+			{
+				// Sphere Radius Labels
+				CreateWindow("STATIC", "Point Light Radius", WS_VISIBLE | WS_CHILD | SS_LEFT, 115, 400, 140, 30, hwnd, NULL, GetModuleHandle(NULL), NULL);
+				CreateWindow("STATIC", "0.0", WS_VISIBLE | WS_CHILD | SS_LEFT, 80, 422, 40, 24, hwnd, NULL, GetModuleHandle(NULL), NULL);
+				CreateWindow("STATIC", "5.0", WS_VISIBLE | WS_CHILD | SS_LEFT, 161, 422, 20, 20, hwnd, NULL, GetModuleHandle(NULL), NULL);
+				CreateWindow("STATIC", "10.0", WS_VISIBLE | WS_CHILD | SS_LEFT, 232, 422, 40, 20, hwnd, NULL, GetModuleHandle(NULL), NULL);
+				CreateWindow("STATIC", "Rad", WS_VISIBLE | WS_CHILD | SS_LEFT, 45, 435, 80, 30, hwnd, NULL, GetModuleHandle(NULL), NULL);
+
+				PointLight& pl = static_cast<PointLight&>(Scene::get().getLight(currentLightIndex));
+				pointLightRadiusTrackbar = CreateTrackbar(hwnd, GetModuleHandle(NULL), "Point Light Radius", 70, 440, static_cast<uint32>(pl.radius * 10.0f));
+			}			
+
 		} break;
 
 		case WM_CTLCOLORSTATIC:
@@ -491,7 +509,11 @@ LRESULT CALLBACK LightEditWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
 				{
 					Scene::get().getLight(currentLightIndex).color.z = hi / 100.0f;
 				}				
-				
+				else if (lParam == (LPARAM)pointLightRadiusTrackbar)
+				{
+					static_cast<PointLight&>(Scene::get().getLight(currentLightIndex)).radius = hi / 10.0f;
+				}
+
 				PostMessage(GetParent(hwnd), WM_HSCROLL, wParam, lParam);
 			}
 		} break;
@@ -706,7 +728,7 @@ HWND WINAPI CreateLightsEditDialog(HWND hwnd, HINSTANCE hInstance, const uint32 
 
 
 	const auto width = 330;
-	const auto height = 490;
+	const auto height = Scene::get().getLight(lightIndex).getLightType() == Light::DIR_LIGHT ? 490 : 580;
 	const auto x = (GetSystemMetrics(SM_CXSCREEN) - width) / 2;
 	const auto y = (GetSystemMetrics(SM_CYSCREEN) - height) / 2;
 
