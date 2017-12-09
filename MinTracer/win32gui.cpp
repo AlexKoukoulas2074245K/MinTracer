@@ -696,7 +696,7 @@ HWND WINAPI win32::CreatePlanesEditDialog(HWND hwnd, HINSTANCE hInstance, const 
 
 	const auto width = 330;
 	const auto height = 690;
-	const auto x = (GetSystemMetrics(SM_CXSCREEN) - width) / 2;
+	const auto x = (GetSystemMetrics(SM_CXSCREEN) - windowWidth) / 2 + windowWidth;
 	const auto y = (GetSystemMetrics(SM_CYSCREEN) - height) / 2;
 
 	auto hwndPlanesEdit = CreateWindow(
@@ -737,7 +737,7 @@ HWND WINAPI win32::CreateSpheresEditDialog(HWND hwnd, HINSTANCE hInstance, const
 
 	const auto width = 330;
 	const auto height = 690;
-	const auto x = (GetSystemMetrics(SM_CXSCREEN) - width) / 2;
+	const auto x = (GetSystemMetrics(SM_CXSCREEN) - windowWidth) / 2 + windowWidth;
 	const auto y = (GetSystemMetrics(SM_CYSCREEN) - height) / 2;
 
 	auto hwndSpheresEdit = CreateWindow(
@@ -778,7 +778,7 @@ HWND WINAPI win32::CreateLightsEditDialog(HWND hwnd, HINSTANCE hInstance, const 
 
 	const auto width = 330;
 	const auto height = Scene::get().getLight(lightIndex).getLightType() == Light::DIR_LIGHT ? 490 : 580;
-	const auto x = (GetSystemMetrics(SM_CXSCREEN) - width) / 2;
+	const auto x = (GetSystemMetrics(SM_CXSCREEN) - windowWidth) / 2 + windowWidth;
 	const auto y = (GetSystemMetrics(SM_CYSCREEN) - height) / 2;
 
 	auto hwndLightEdit = CreateWindow(
@@ -817,7 +817,7 @@ HWND WINAPI win32::CreateReflectionAndRefractionCountDialog(HWND hwnd, HINSTANCE
 
 	const auto width = 330;
 	const auto height = 370;
-	const auto x = (GetSystemMetrics(SM_CXSCREEN) - width) / 2;
+	const auto x = (GetSystemMetrics(SM_CXSCREEN) - windowWidth) / 2 + windowWidth;
 	const auto y = (GetSystemMetrics(SM_CYSCREEN) - height) / 2;
 
 	auto hwndReflectionRefractionCount = CreateWindow(
