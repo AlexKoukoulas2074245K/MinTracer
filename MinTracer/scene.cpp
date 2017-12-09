@@ -7,6 +7,7 @@
 
 // Local Headers
 #include "scene.h"
+#include "strutils.h"
 
 // Remote Headers
 #include <thread>
@@ -23,14 +24,46 @@ Scene::~Scene()
 }
 
 Scene::Scene()
+	: _underConstruction(false)
 {
-	constructScene();
+	constructDefaultScene();	
 }
 
-Sphere& Scene::getSphere(const size_t index) { return _spheres[index]; }
-Light& Scene::getLight(const size_t index) { return *_lights[index]; }
-Material& Scene::getMaterial(const size_t index) { return _materials[index]; }
-Plane& Scene::getPlane(const size_t index) { return _planes[index]; }
+Sphere& Scene::getSphere(const size_t index) 
+{
+	if (_underConstruction)
+	{
+		return _stubSphere;
+	}
+	return _spheres[index]; 
+}
+
+Light& Scene::getLight(const size_t index) 
+{
+	if (_underConstruction)
+	{
+		return _stubLight;
+	}
+	return *_lights[index]; 
+}
+
+Material& Scene::getMaterial(const size_t index) 
+{
+	if (_underConstruction)
+	{
+		return _stubMaterial;
+	}
+	return _materials[index]; 
+}
+
+Plane& Scene::getPlane(const size_t index) 
+{
+	if (_underConstruction)
+	{
+		return _stubPlane;
+	}
+	return _planes[index]; 
+}
 
 size_t Scene::getSphereCount() const { return _spheres.size(); }
 size_t Scene::getLightCount() const { return _lights.size(); }
@@ -66,7 +99,21 @@ void Scene::saveScene(const std::string& filePath, win32::io_result_callback cal
 
 void Scene::openScene(const std::string& filePath, win32::io_result_callback callbackOnCompletion)
 {
-	const auto b = false;
+	auto openThread = std::thread([filePath, callbackOnCompletion, this]()
+	{
+		std::ifstream inputFile(filePath, std::ios::in);
+
+		if (inputFile.good())
+		{
+			std::stringstream fileContents;
+			fileContents << inputFile.rdbuf();
+			this->constructFromString(fileContents.str());
+		}
+
+		callbackOnCompletion(win32::IO_DIALOG_RESULT_TYPE::SUCCESS);
+	});
+
+	openThread.detach();
 }
 
 std::string Scene::toString() const
@@ -102,13 +149,104 @@ std::string Scene::toString() const
 	{
 		result << plane.toString() << "\n";
 	}
+	
+	result << "#End";
 
 	return result.str();
 }
 
-void Scene::constructScene()
+void Scene::constructFromString(const std::string& sceneDescription)
 {
-	//_lights.emplace_back(std::make_unique<Light>(vec3<f32>(2.0f, 0.0f, -3.0f), vec3<f32>(0.5f, 0.5f, 0.5f)));
+	_underConstruction = true;
+	_lights.clear();
+	_materials.clear();
+	_spheres.clear();
+	_planes.clear();
+
+	_reflectionCount = 0U;
+	_refractionCount = 0U;
+	_fresnelPower = 0.0f;
+
+	const auto sceneDescLines = strutils::split(sceneDescription, '\n');
+
+	_reflectionCount = std::stoi(sceneDescLines[1]);
+	_refractionCount = std::stoi(sceneDescLines[3]);
+	_fresnelPower = std::stof(sceneDescLines[5]);
+	
+	enum ParsingState
+	{
+		MATERIAL, LIGHT, SPHERE, PLANE, END
+	};
+
+	auto parsingState = MATERIAL;
+	auto lineCursor = 7; // Start of material entries
+
+	while (parsingState != END)
+	{
+		const auto& currentLine = sceneDescLines[lineCursor++];
+		const auto currentLineComps = strutils::split(currentLine, ' ');
+
+		switch (parsingState)
+		{
+			case MATERIAL:
+			{
+				// Could optimize start of next states with fewer letters
+				// such as "#L", but kept the full redundant check against
+				// "#Lights" for clarity
+				if (!strutils::startsWith(currentLine, "#Lights"))
+				{
+					_materials.push_back(Material(currentLineComps));
+				}
+				else
+				{
+					parsingState = LIGHT;					
+				}
+			} break;
+
+			case LIGHT:
+			{
+				if (!strutils::startsWith(currentLine, "#Spheres"))
+				{
+					_lights.push_back(currentLineComps.size() > 2 ? 
+						std::make_unique<PointLight>(currentLineComps) :
+						std::make_unique<Light>(currentLineComps));
+				}
+				else
+				{
+					parsingState = SPHERE;										
+				}
+			} break;
+
+			case SPHERE:
+			{
+				if (!strutils::startsWith(currentLine, "#Planes"))
+				{
+					_spheres.push_back(Sphere(currentLineComps));
+				}
+				else
+				{
+					parsingState = PLANE;					
+				}
+			} break;
+
+			case PLANE:
+			{
+				if (strutils::startsWith(currentLine, "#End"))
+				{
+					parsingState = END;
+				}
+				else
+				{
+					_planes.push_back(Plane(currentLineComps));
+				}
+			} break;
+		}
+	}
+	_underConstruction = false;
+}
+
+void Scene::constructDefaultScene()
+{
 	_lights.emplace_back(std::make_unique<PointLight>(vec3<f32>(0.0f, -0.5f, -6.0f), vec3<f32>(1.0f, 1.0f, 1.0f), 0.2f));
 
 	_materials.emplace_back(vec3<f32>(0.0f, 0.0f, 0.0f), vec3<f32>(0.0f, 0.0f, 0.0f), vec3<f32>(0.0f, 0.0f, 0.0f), 0.0f, 0.0f, 0.0f);

@@ -8,6 +8,7 @@
 #include <sstream>
 
 #include "typedefs.h"
+#include "strutils.h"
 
 const f32 PI = 3.1415927f;
 
@@ -22,6 +23,13 @@ public:
 	vec3() : x(T(0)), y(T(0)), z(T(0)) {}
 	vec3(T xx) : x(xx), y(xx), z(xx) {}
 	vec3(T xx, T yy, T zz) : x(xx), y(yy), z(zz) {}
+	vec3(const std::string& desc) 
+	{
+		const auto vecDesc = strutils::split(desc, ','); 
+		x = std::stof(vecDesc[0]);
+		y = std::stof(vecDesc[1]);
+		z = std::stof(vecDesc[2]); 
+	}
 	
 	vec3<T>& operator -= (const vec3<T>& v) { x -= v.x, y -= v.y; z -= v.z; return *this; }
 	vec3<T>& operator += (const vec3<T>& v) { x += v.x; y += v.y; z += v.z; return *this; }

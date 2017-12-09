@@ -558,7 +558,23 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE __, LPSTR ___, int ____)
 
 		if (openScene)
 		{
-			win32::CreateIODialog(windowHandle, instance, win32::IO_DIALOG_TYPE::OPEN, nullptr);
+			win32::CreateIODialog(windowHandle, instance, win32::IO_DIALOG_TYPE::OPEN, [&renderWidth, &renderHeight, &renderStopFlag, &initRenderWidth, &initRenderHeight](const win32::IO_DIALOG_RESULT_TYPE resultType)
+			{
+				switch (resultType)
+				{
+					case win32::SUCCESS:
+					{
+						renderStopFlag = true;
+						renderWidth = initRenderWidth;
+						renderHeight = initRenderHeight;
+					} break;
+
+					case win32::FAILURE:
+					{
+						MessageBox(NULL, "Error: Could not load scene", "Error", MB_OK | MB_ICONERROR);
+					} break;
+				}
+			});
 			openScene = false;
 		}
 	}		

@@ -834,7 +834,7 @@ HWND WINAPI win32::CreateMainWindow(HINSTANCE instance, const sint32 windowWidth
 	return handle;
 }
 
-void win32::CreateIODialog(HWND hwnd, HINSTANCE instance, const IO_DIALOG_TYPE ioDialogType, io_result_callback callbackOnCompletion)
+void WINAPI win32::CreateIODialog(HWND hwnd, HINSTANCE instance, const IO_DIALOG_TYPE ioDialogType, io_result_callback callbackOnIOCompletion)
 {
 	OPENFILENAME ofn = {};
 
@@ -860,10 +860,10 @@ void win32::CreateIODialog(HWND hwnd, HINSTANCE instance, const IO_DIALOG_TYPE i
 
 	if (ioDialogType == SAVE_AS && GetSaveFileName(&ofn))
 	{		
-		Scene::get().saveScene(szFileFullPath, callbackOnCompletion);
+		Scene::get().saveScene(szFileFullPath, callbackOnIOCompletion);
 	}
 	else if (ioDialogType == OPEN && GetOpenFileName(&ofn))
 	{
-		Scene::get().openScene(szFileFullPath, callbackOnCompletion);
+		Scene::get().openScene(szFileFullPath, callbackOnIOCompletion);
 	}
 }
