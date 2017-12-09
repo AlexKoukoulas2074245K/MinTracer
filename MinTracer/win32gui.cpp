@@ -23,6 +23,14 @@ static uint32 currentLightIndex = 0;
 static uint32 currentSphereIndex = 0;
 static uint32 currentPlaneIndex = 0;
 
+static HFONT hFont = 0;
+
+BOOL CALLBACK EnumChildProc(HWND childHWND, LPARAM lParam)
+{
+	SendMessage(childHWND, WM_SETFONT, (WPARAM)hFont, (LPARAM)MAKELONG(TRUE, 0));
+	return TRUE;
+}
+
 static HWND WINAPI CreateTrackbar(
 	HWND hwndDlg,        // handle of dialog box (parent window) 
 	HINSTANCE hInstance, // Instance	
@@ -183,6 +191,9 @@ LRESULT CALLBACK PlanesEditWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
 
 			// Plane Refractivity Trackbar
 			planeRefractivityTrackbar = CreateTrackbar(hwnd, GetModuleHandle(NULL), "Plane Refractivity", 70, 520, static_cast<uint32>(Scene::get().getMaterial(Scene::get().getPlane(currentPlaneIndex).matIndex).refractivity * 33.0f));
+
+			// Set Font to all children
+			EnumChildWindows(hwnd, EnumChildProc, lParam);
 		} break;
 
 		case WM_CTLCOLORSTATIC:
@@ -327,6 +338,8 @@ LRESULT CALLBACK SpheresEditWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
 			// Sphere Refractivity Trackbar
 			sphereRefractivityTrackbar = CreateTrackbar(hwnd, GetModuleHandle(NULL), "Sphere Refractivity", 70, 520, static_cast<uint32>(Scene::get().getMaterial(Scene::get().getSphere(currentSphereIndex).matIndex).refractivity * 33.0f));
 
+			// Set Font to all children
+			EnumChildWindows(hwnd, EnumChildProc, lParam);
 		} break;
 
 		case WM_CTLCOLORSTATIC:
@@ -460,6 +473,9 @@ LRESULT CALLBACK LightEditWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
 
 				PointLight& pl = static_cast<PointLight&>(Scene::get().getLight(currentLightIndex));
 				pointLightRadiusTrackbar = CreateTrackbar(hwnd, GetModuleHandle(NULL), "Point Light Radius", 70, 440, static_cast<uint32>(pl.radius * 10.0f));
+
+				// Set Font to all children
+				EnumChildWindows(hwnd, EnumChildProc, lParam);
 			}			
 
 		} break;
@@ -565,6 +581,9 @@ LRESULT CALLBACK ReflectionCountWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPAR
 			refractionCountTrackbar = CreateTrackbar(hwnd, GetModuleHandle(NULL), "Refraction", 70, 140, Scene::get().getRefractionCount(), 6);
 			fresnelPowerTrackbar = CreateTrackbar(hwnd, GetModuleHandle(NULL), "Fresnel", 70, 240, static_cast<uint32>((Scene::get().getFresnelPower() - 1) * 25), 100);
 
+			// Set Font to all children
+			EnumChildWindows(hwnd, EnumChildProc, lParam);
+
 		} break;
 
 		case WM_CTLCOLORSTATIC:
@@ -618,6 +637,19 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 		case WM_CREATE:
 		{
 			CreateMenus(hwnd);
+			
+			const long nFontSize = 10;
+
+			HDC hdc = GetDC(hwnd);
+
+			LOGFONT logFont = { 0 };
+			logFont.lfHeight = -MulDiv(nFontSize, GetDeviceCaps(hdc, LOGPIXELSY), 72);
+			logFont.lfWeight = FW_BOLD;
+			strcpy_s(logFont.lfFaceName, "Berling Sans FB");
+			hFont = CreateFontIndirect(&logFont);
+
+			ReleaseDC(hwnd, hdc);
+						
 		} break;
 
 		case WM_SIZE:
@@ -635,6 +667,7 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 
 		case WM_DESTROY:
 		{
+			DeleteObject(hFont);
 			PostQuitMessage(0);
 		} break;
 	}

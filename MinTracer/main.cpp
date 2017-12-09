@@ -442,8 +442,8 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE __, LPSTR ___, int ____)
 					renderStopFlag = false;
 
 					thread masterRayTraceThread([&rendering, &renderWidth, &renderHeight, prevWindowHeight, prevWindowWidth, targetWidth, targetHeight, &renderStopFlag, windowHandle]()
-					{
-						render(renderWidth, renderHeight, prevWindowWidth, prevWindowHeight, renderStopFlag, windowHandle, "output_images/last_rendering_" + to_string(renderWidth) + "x" + to_string(renderHeight) + ".bmp");
+					{						
+						render(renderWidth, renderHeight, prevWindowWidth, prevWindowHeight, renderStopFlag, windowHandle, "output_images/last_rendering.bmp");
 						SetWindowText(windowHandle, ("MinTracer -- Current resolution: " + to_string(renderWidth) + " x " + to_string(renderHeight)).c_str());
 						if (renderWidth <= targetWidth)
 						{
