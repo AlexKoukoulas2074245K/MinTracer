@@ -14,6 +14,8 @@ const f32 PI = 3.1415927f;
 
 inline f32 minf(const f32 a, const f32 b) { return a < b ? a : b; }
 inline f32 maxf(const f32 a, const f32 b) { return a > b ? a : b; }
+inline uint32 minu(const uint32 a, const uint32 b) { return a < b ? a : b; }
+inline uint32 maxu(const uint32 a, const uint32 b) { return a > b ? a : b; }
 
 template<typename T>
 class vec3

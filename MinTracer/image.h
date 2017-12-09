@@ -14,7 +14,7 @@
 
 class Image
 {
-public:
+public:	
 	Image();
 	Image(const sint32 width, const sint32 height);
 	

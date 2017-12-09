@@ -26,6 +26,10 @@ static const f32 T_MAX = 100.0f;
 
 using namespace std;
 
+// Window Parameters
+auto windowWidth = 842U;
+auto windowHeight = 683U;
+
 struct HitInfo
 {
 	bool hit;
@@ -145,6 +149,9 @@ vec3<f32> shade(const Ray& ray, const Light& light, const HitInfo& hitInfo)
 	colorAccum += (material.diffuse * light.color) * diffuseTerm;	
 	if (light.getLightType() == Light::POINT_LIGHT)
 	{				
+		// This downcast might cause issues if it executes concurrently with
+		// reconstructing the scene from an existing file, due to the way
+		// stubs are returned during construction.
 		colorAccum /= 4 * PI * static_cast<const PointLight&>(light).radius;
 	}
 
@@ -302,6 +309,7 @@ void render(const sint32 renderWidth,
 	thread workers[threadCount];
 	thread announcer([&rowsRendered, &renderStopFlag, renderHeight]()
 	{
+#if defined(DEBUG) || defined(_DEBUG)
 		auto currentPercent = 0;
 		while (rowsRendered != renderHeight)
 		{
@@ -314,6 +322,7 @@ void render(const sint32 renderWidth,
 				OutputDebugString(string("Ray Tracing " + to_string(currentPercent) + "% complete\n").c_str());
 			}
 		}
+#endif
 	});
 
 	for (auto i = 0; i < threadCount; ++i)
@@ -376,8 +385,10 @@ void render(const sint32 renderWidth,
 		{
 			if (renderStopFlag) return;
 
-			const auto colorVec = resultImage.getPixel(x, y);
-			arr[y * targetWidth + x] = RGB(minf(1.0f, colorVec.z) * 255, minf(1.0f, colorVec.y) * 255, minf(1.0f, colorVec.x) * 255);
+			const auto colorVec = resultImage[minu(y, resultImage.getHeight() - 1)][minu(x, resultImage.getWidth() - 1)];
+			arr[y * targetWidth + x] = RGB(minf(1.0f, colorVec.z) * 255,
+				                           minf(1.0f, colorVec.y) * 255,
+				                           minf(1.0f, colorVec.x) * 255);
 		}
 	}
 	
@@ -400,18 +411,16 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE __, LPSTR ___, int ____)
 	// Initialize Scene	
 	auto renderStopFlag = false;
 
-	// Window Parameters
-	const auto windowWidth = 840;
-	const auto windowHeight = 680;
-
 	// Constant Render Pamaters
-	const auto targetWidth = windowWidth * 4;
-	const auto targetHeight = windowHeight * 4;
-	const auto initRenderWidth = windowWidth / 8;
-	const auto initRenderHeight = windowHeight / 8;
+	auto prevWindowWidth = windowWidth;
+	auto prevWindowHeight = windowHeight;
+	auto targetWidth = prevWindowWidth * 4;
+	auto targetHeight = prevWindowHeight * 4;
+	auto initRenderWidth = prevWindowWidth / 8;
+	auto initRenderHeight = prevWindowHeight / 8;
 
 	// Initialize Window
-	auto windowHandle = win32::CreateMainWindow(instance, windowWidth, windowHeight, "MinTracer");	
+	auto windowHandle = win32::CreateMainWindow(instance, prevWindowWidth, prevWindowHeight, "MinTracer");	
 
 	// Render Target Parameters
 	auto renderWidth = initRenderWidth;
@@ -424,7 +433,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE __, LPSTR ___, int ____)
 	while (msg.message != WM_QUIT )
 	{
 		switch(msg.message)
-		{
+		{		
 			case WM_PAINT:
 			{		
 				if (!rendering && renderWidth <= targetWidth)
@@ -432,9 +441,9 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE __, LPSTR ___, int ____)
 					rendering = true;
 					renderStopFlag = false;
 
-					thread masterRayTraceThread([&rendering, &renderWidth, &renderHeight, windowHeight, windowWidth, targetWidth, targetHeight, &renderStopFlag, windowHandle]()
+					thread masterRayTraceThread([&rendering, &renderWidth, &renderHeight, prevWindowHeight, prevWindowWidth, targetWidth, targetHeight, &renderStopFlag, windowHandle]()
 					{
-						render(renderWidth, renderHeight, windowWidth, windowHeight, renderStopFlag, windowHandle, "output_images/last_rendering_" + to_string(renderWidth) + "x" + to_string(renderHeight) + ".bmp");
+						render(renderWidth, renderHeight, prevWindowWidth, prevWindowHeight, renderStopFlag, windowHandle, "output_images/last_rendering_" + to_string(renderWidth) + "x" + to_string(renderHeight) + ".bmp");
 						SetWindowText(windowHandle, ("MinTracer -- Current resolution: " + to_string(renderWidth) + " x " + to_string(renderHeight)).c_str());
 						if (renderWidth <= targetWidth)
 						{
@@ -528,6 +537,21 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE __, LPSTR ___, int ____)
 		{
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
+		}
+
+		if (prevWindowHeight != windowHeight || prevWindowWidth != windowWidth)
+		{
+			prevWindowWidth = windowWidth;
+			prevWindowHeight = windowHeight;
+
+			targetWidth = prevWindowWidth * 4;
+			targetHeight = prevWindowHeight * 4;
+			initRenderWidth = prevWindowWidth / 8;
+			initRenderHeight = prevWindowHeight / 8;
+
+			renderStopFlag = true;
+			renderWidth = initRenderWidth;
+			renderHeight = initRenderHeight;
 		}
 
 		if (renderWidth <= targetWidth && !rendering)

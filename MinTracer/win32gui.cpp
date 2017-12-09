@@ -16,6 +16,9 @@
 name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
 processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
+extern uint32 windowWidth;
+extern uint32 windowHeight;
+
 static uint32 currentLightIndex = 0;
 static uint32 currentSphereIndex = 0;
 static uint32 currentPlaneIndex = 0;
@@ -617,6 +620,19 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 			CreateMenus(hwnd);
 		} break;
 
+		case WM_SIZE:
+		{			
+			windowWidth = LOWORD(lParam);
+			windowHeight = HIWORD(lParam);
+		} break;
+
+		case WM_GETMINMAXINFO:
+		{
+			MINMAXINFO* mmi = (MINMAXINFO*)lParam;
+			mmi->ptMinTrackSize.x = 300;
+			mmi->ptMinTrackSize.y = 300;
+		} break;
+
 		case WM_DESTROY:
 		{
 			PostQuitMessage(0);
@@ -819,7 +835,7 @@ HWND WINAPI win32::CreateMainWindow(HINSTANCE instance, const sint32 windowWidth
 	const auto x = (GetSystemMetrics(SM_CXSCREEN) - windowWidth) / 2;
 	const auto y = (GetSystemMetrics(SM_CYSCREEN) - windowHeight) / 2;
 
-	auto handle = CreateWindow(title.c_str(), title.c_str(), WS_OVERLAPPEDWINDOW ^ WS_THICKFRAME, x, y, w, h, 0, 0, instance, 0);
+	auto handle = CreateWindow(title.c_str(), title.c_str(), WS_OVERLAPPEDWINDOW, x, y, w, h, 0, 0, instance, 0);
 
 	if (!handle)
 	{

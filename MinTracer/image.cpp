@@ -54,13 +54,13 @@ void Image::resize(const sint32 width, const sint32 height)
 
 void Image::scale(const f32 scaleFactor)
 {	
-	std::vector<std::vector<vec3<f32>>> resultData;
-	const auto resultWidth = static_cast<sint32>(_width * scaleFactor);
-	const auto resultHeight = static_cast<sint32>(_height * scaleFactor);
-	resultData.resize(resultHeight, std::vector<vec3<f32>>(resultWidth, 0.0f));
+	const auto roundedScaleFactor = roundf(scaleFactor * 100.0f)/100.0f;
 
-	const auto roundedScaleFactor = lroundf(scaleFactor);
-	const auto invScaleFactor = 1.0f / scaleFactor;
+	std::vector<std::vector<vec3<f32>>> resultData;
+	const auto resultWidth = static_cast<sint32>(_width * roundedScaleFactor);
+	const auto resultHeight = static_cast<sint32>(_height * roundedScaleFactor);
+	resultData.resize(resultHeight, std::vector<vec3<f32>>(resultWidth, 0.0f));	
+	const auto invScaleFactor = 1.0f / roundedScaleFactor;
 
 	// Downscaling (2x2 averaging)
 	if (invScaleFactor > 1.0f)
@@ -72,7 +72,6 @@ void Image::scale(const f32 scaleFactor)
 		{
 			for (auto x = step - 1; x < _width; x += step)
 			{
-
 				for (auto j = -step + 1; j < 1; ++j)
 				{
 					for (auto i = -step + 1; i < 1; ++i)
@@ -89,8 +88,8 @@ void Image::scale(const f32 scaleFactor)
 		for (auto y = 0; y < resultHeight; ++y)
 		{
 			for (auto x = 0; x < resultWidth; ++x)
-			{
-				resultData[y][x] = _data[y / roundedScaleFactor][x / roundedScaleFactor];
+			{								
+				resultData[y][x] = _data[minu(_height - 1, y / roundedScaleFactor)][minu(_width - 1, x / roundedScaleFactor)];
 			}
 		}
 	}
