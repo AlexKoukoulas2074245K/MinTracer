@@ -14,6 +14,7 @@
 #include <chrono>
 #include <thread>
 #include <atomic>
+#include <iomanip>
 
 #include "win32gui.h"
 #include "scene.h"
@@ -56,7 +57,7 @@ HitInfo rayPlaneIntersectionTest(const Ray& ray, const Plane& plane)
 {
 	const auto denom = dot(plane.normal, ray.direction);
 
-	if (denom > 1e-6f || denom <-1e-6f)
+	if (denom > 1e-6f || denom < -1e-6f)
 	{
 		const auto t = -(plane.d + (dot(plane.normal, ray.origin)))/denom;
 		if (t > 0.0f)
@@ -289,8 +290,7 @@ void render(const sint32 renderWidth,
 	        const sint32 targetWidth, 
 	        const sint32 targetHeight, 
 	        const bool& renderStopFlag,
-	        HWND windowHandle,
-	        const string& outputFilename)
+	        HWND windowHandle)
 {
 	// Initilize ray tracing result
 	Image resultImage(renderWidth, renderHeight);	
@@ -372,7 +372,7 @@ void render(const sint32 renderWidth,
 	if (renderStopFlag) return;	
 
 	// Scale result
-	resultImage.scale((targetWidth + targetHeight) / static_cast<f32>(renderWidth + renderHeight));
+	const auto roundedScaleFactor = resultImage.scale((targetWidth + targetHeight) / static_cast<f32>(renderWidth + renderHeight));
 
 	// Create bitmap array
 	COLORREF *arr = (COLORREF*)calloc(targetWidth * targetHeight, sizeof(COLORREF));
@@ -401,7 +401,9 @@ void render(const sint32 renderWidth,
 	free(arr);
 
 	// Write result to file
-	resultImage.writeToBMP(outputFilename);
+	std::stringstream outputFileNameStream;
+	outputFileNameStream << "output_images/last_rendering" << std::fixed << std::setprecision(2) << roundedScaleFactor << "x.bmp";
+	resultImage.writeToBMP(outputFileNameStream.str());
 
 	cout << "Finished writing output to file.. " << endl;
 }
@@ -443,7 +445,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE __, LPSTR ___, int ____)
 
 					thread masterRayTraceThread([&rendering, &renderWidth, &renderHeight, prevWindowHeight, prevWindowWidth, targetWidth, targetHeight, &renderStopFlag, windowHandle]()
 					{						
-						render(renderWidth, renderHeight, prevWindowWidth, prevWindowHeight, renderStopFlag, windowHandle, "output_images/last_rendering.bmp");
+						render(renderWidth, renderHeight, prevWindowWidth, prevWindowHeight, renderStopFlag, windowHandle);
 						SetWindowText(windowHandle, ("MinTracer -- Current resolution: " + to_string(renderWidth) + " x " + to_string(renderHeight)).c_str());
 						if (renderWidth <= targetWidth)
 						{

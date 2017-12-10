@@ -27,7 +27,7 @@ public:
 	inline void setPixel(const uint32 x, const uint32 y, const f32& val) { _data[y][x] = val; }
 	
 	void resize(const sint32 width, const sint32 height);
-	void scale(const f32 scaleFactor);
+	f32 scale(const f32 scaleFactor);
 	void writeToBMP(const std::string& fileName);
 
 private:

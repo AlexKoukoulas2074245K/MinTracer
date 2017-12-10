@@ -52,9 +52,9 @@ void Image::resize(const sint32 width, const sint32 height)
 	_height = height;
 }
 
-void Image::scale(const f32 scaleFactor)
+f32 Image::scale(const f32 scaleFactor)
 {	
-	const auto roundedScaleFactor = roundf(scaleFactor * 100.0f)/100.0f;
+	const auto roundedScaleFactor = scaleFactor > 1.0f ? roundf(scaleFactor) : (scaleFactor > 0.4f ? 0.5f : 0.25f);
 
 	std::vector<std::vector<vec3<f32>>> resultData;
 	const auto resultWidth = static_cast<sint32>(_width * roundedScaleFactor);
@@ -97,6 +97,8 @@ void Image::scale(const f32 scaleFactor)
 	_data = resultData;
 	_width = resultWidth;
 	_height = resultHeight;
+
+	return roundedScaleFactor;
 }
 
 
