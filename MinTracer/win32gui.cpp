@@ -675,9 +675,14 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 	return DefWindowProc(hwnd, msg, wParam, lParam);
 }
 
-HWND WINAPI win32::CreatePlanesEditDialog(HWND hwnd, HINSTANCE hInstance, const uint32 planeIndex)
+static HWND WINAPI CreateEditDialog(HWND hwnd, 
+	                                HINSTANCE hInstance, 
+	                                WNDPROC dialogWindowProc,
+	                                const std::string& dialogClassName, 
+	                                const std::string& dialogTitle, 
+	                                const uint32 width,
+	                                const uint32 height)
 {
-	currentPlaneIndex = planeIndex;
 
 	WNDCLASS wc = {};
 	wc.cbClsExtra = 0;
@@ -686,22 +691,19 @@ HWND WINAPI win32::CreatePlanesEditDialog(HWND hwnd, HINSTANCE hInstance, const 
 	wc.hCursor = LoadCursor(0, IDC_ARROW);
 	wc.hIcon = LoadIcon(0, IDI_APPLICATION);
 	wc.hInstance = hInstance;
-	wc.lpfnWndProc = PlanesEditWndProc;
-	wc.lpszClassName = "PlanesEdit";
+	wc.lpfnWndProc = dialogWindowProc;
+	wc.lpszClassName = dialogClassName.c_str();
 	wc.lpszMenuName = 0;
 	wc.style = CS_HREDRAW | CS_VREDRAW;
 
 	RegisterClass(&wc);
-
-
-	const auto width = 330;
-	const auto height = 690;
+	
 	const auto x = (GetSystemMetrics(SM_CXSCREEN) - windowWidth) / 2 + windowWidth;
 	const auto y = (GetSystemMetrics(SM_CYSCREEN) - height) / 2;
 
-	auto hwndPlanesEdit = CreateWindow(
+	auto hwndEditDialog = CreateWindow(
 		wc.lpszClassName,
-		"Edit Planes",
+		dialogTitle.c_str(),
 		WS_OVERLAPPEDWINDOW ^ WS_THICKFRAME,
 		x, y,
 		width, height,
@@ -711,130 +713,32 @@ HWND WINAPI win32::CreatePlanesEditDialog(HWND hwnd, HINSTANCE hInstance, const 
 		NULL
 	);
 
-	SetFocus(hwndPlanesEdit);
-	ShowWindow(hwndPlanesEdit, SW_SHOW);
-	return hwndPlanesEdit;
+	SetFocus(hwndEditDialog);
+	ShowWindow(hwndEditDialog, SW_SHOW);
+	return hwndEditDialog;
+}
+
+HWND WINAPI win32::CreatePlanesEditDialog(HWND hwnd, HINSTANCE hInstance, const uint32 planeIndex)
+{
+	currentPlaneIndex = planeIndex;
+	return CreateEditDialog(hwnd, hInstance, PlanesEditWndProc, "EditPlaneWindowClass", "Edit Plane", 330, 690);
 }
 
 HWND WINAPI win32::CreateSpheresEditDialog(HWND hwnd, HINSTANCE hInstance, const uint32 sphereIndex)
 {
 	currentSphereIndex = sphereIndex;
-
-	WNDCLASS wc = {};
-	wc.cbClsExtra = 0;
-	wc.cbWndExtra = 0;
-	wc.hbrBackground = (HBRUSH)GetStockObject(NULL_BRUSH);
-	wc.hCursor = LoadCursor(0, IDC_ARROW);
-	wc.hIcon = LoadIcon(0, IDI_APPLICATION);
-	wc.hInstance = hInstance;
-	wc.lpfnWndProc = SpheresEditWndProc;
-	wc.lpszClassName = "SpheresEdit";
-	wc.lpszMenuName = 0;
-	wc.style = CS_HREDRAW | CS_VREDRAW;
-
-	RegisterClass(&wc);
-
-
-	const auto width = 330;
-	const auto height = 690;
-	const auto x = (GetSystemMetrics(SM_CXSCREEN) - windowWidth) / 2 + windowWidth;
-	const auto y = (GetSystemMetrics(SM_CYSCREEN) - height) / 2;
-
-	auto hwndSpheresEdit = CreateWindow(
-		wc.lpszClassName,
-		"Edit Spheres",
-		WS_OVERLAPPEDWINDOW ^ WS_THICKFRAME,
-		x, y,
-		width, height,
-		hwnd,
-		NULL,
-		hInstance,
-		NULL
-	);	
-
-	SetFocus(hwndSpheresEdit);
-	ShowWindow(hwndSpheresEdit, SW_SHOW);
-	return hwndSpheresEdit;
+	return CreateEditDialog(hwnd, hInstance, SpheresEditWndProc, "EditSphereWindowClass", "Edit Sphere", 330, 690);	
 }
 
 HWND WINAPI win32::CreateLightsEditDialog(HWND hwnd, HINSTANCE hInstance, const uint32 lightIndex)
 {
 	currentLightIndex = lightIndex;
-
-	WNDCLASS wc = {};
-	wc.cbClsExtra = 0;
-	wc.cbWndExtra = 0;
-	wc.hbrBackground = (HBRUSH)GetStockObject(NULL_BRUSH);
-	wc.hCursor = LoadCursor(0, IDC_ARROW);
-	wc.hIcon = LoadIcon(0, IDI_APPLICATION);
-	wc.hInstance = hInstance;
-	wc.lpfnWndProc = LightEditWndProc;
-	wc.lpszClassName = "LightEdit";
-	wc.lpszMenuName = 0;
-	wc.style = CS_HREDRAW | CS_VREDRAW;
-
-	RegisterClass(&wc);
-
-
-	const auto width = 330;
-	const auto height = Scene::get().getLight(lightIndex).getLightType() == Light::DIR_LIGHT ? 490 : 580;
-	const auto x = (GetSystemMetrics(SM_CXSCREEN) - windowWidth) / 2 + windowWidth;
-	const auto y = (GetSystemMetrics(SM_CYSCREEN) - height) / 2;
-
-	auto hwndLightEdit = CreateWindow(
-		wc.lpszClassName,
-		"Edit Lights",
-		WS_OVERLAPPEDWINDOW ^ WS_THICKFRAME,
-		x, y,
-		width, height,
-		hwnd,
-		NULL,
-		hInstance,
-		NULL
-	);
-
-	SetFocus(hwndLightEdit);
-	ShowWindow(hwndLightEdit, SW_SHOW);
-	return hwndLightEdit;
+	return CreateEditDialog(hwnd, hInstance, LightEditWndProc, "EditLightWindowClas", "Edit Light", 330, Scene::get().getLight(lightIndex).getLightType() == Light::DIR_LIGHT ? 490 : 580);
 }
 
 HWND WINAPI win32::CreateReflectionAndRefractionCountDialog(HWND hwnd, HINSTANCE hInstance)
 {
-	WNDCLASS wc = {};
-	wc.cbClsExtra = 0;
-	wc.cbWndExtra = 0;
-	wc.hbrBackground = (HBRUSH)GetStockObject(NULL_BRUSH);
-	wc.hCursor = LoadCursor(0, IDC_ARROW);
-	wc.hIcon = LoadIcon(0, IDI_APPLICATION);
-	wc.hInstance = hInstance;
-	wc.lpfnWndProc = ReflectionCountWndProc;
-	wc.lpszClassName = "ReflectionRefractionCount";
-	wc.lpszMenuName = 0;
-	wc.style = CS_HREDRAW | CS_VREDRAW;
-
-	RegisterClass(&wc);
-
-
-	const auto width = 330;
-	const auto height = 370;
-	const auto x = (GetSystemMetrics(SM_CXSCREEN) - windowWidth) / 2 + windowWidth;
-	const auto y = (GetSystemMetrics(SM_CYSCREEN) - height) / 2;
-
-	auto hwndReflectionRefractionCount = CreateWindow(
-		wc.lpszClassName,
-		"Change Reflection & Refraction Count",
-		WS_OVERLAPPEDWINDOW ^ WS_THICKFRAME,
-		x, y,
-		width, height,
-		hwnd,
-		NULL,
-		hInstance,
-		NULL
-	);
-
-	SetFocus(hwndReflectionRefractionCount);
-	ShowWindow(hwndReflectionRefractionCount, SW_SHOW);
-	return hwndReflectionRefractionCount;
+	return CreateEditDialog(hwnd, hInstance, ReflectionCountWndProc, "EditReflectionRefractionWindowClass", "Change Reflection & Refraction Count", 330, 370);	
 }
 
 HWND WINAPI win32::CreateMainWindow(HINSTANCE instance, const sint32 windowWidth, const sint32 windowHeight, const std::string& title)
