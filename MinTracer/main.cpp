@@ -372,7 +372,7 @@ void render(const sint32 renderWidth,
 	if (renderStopFlag) return;	
 
 	// Scale result
-	const auto roundedScaleFactor = resultImage.scale((targetWidth + targetHeight) / static_cast<f32>(renderWidth + renderHeight));
+	const auto invRoundedScaleFactor = resultImage.scale((targetWidth + targetHeight) / static_cast<f32>(renderWidth + renderHeight));
 
 	// Create bitmap array
 	COLORREF *arr = (COLORREF*)calloc(targetWidth * targetHeight, sizeof(COLORREF));
@@ -402,7 +402,7 @@ void render(const sint32 renderWidth,
 
 	// Write result to file
 	std::stringstream outputFileNameStream;
-	outputFileNameStream << "output_images/last_rendering" << std::fixed << std::setprecision(2) << roundedScaleFactor << "x.bmp";
+	outputFileNameStream << "output_images/last_rendering" << std::fixed << std::setprecision(2) << 1.0f/invRoundedScaleFactor << "x.bmp";
 	resultImage.writeToBMP(outputFileNameStream.str());
 
 	cout << "Finished writing output to file.. " << endl;
