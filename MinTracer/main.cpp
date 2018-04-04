@@ -401,7 +401,7 @@ void render(const sint32 currentRenderWidth,
     free(arr);
 
     // Write result to file
-    std::stringstream outputFileNameStream;
+    std::stringstream outputFileNameStream;	
     outputFileNameStream << "output_images/last_rendering" << std::fixed << std::setprecision(2) << 1.0f/invRoundedScaleFactor << "x.bmp";
     resultImage.writeToBMP(outputFileNameStream.str());
 
@@ -419,6 +419,10 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmd, int 
 {            
     // Initialize Scene    
     auto renderStopFlag = false;
+
+	// Create Output folder if it doesn't already exist
+	CreateDirectory("output_images", NULL);
+
 
     // Render Size Parameters. The apparent clutter with respect to these, is 
     // due to the many operations that could trigger re-rendering, such as 
