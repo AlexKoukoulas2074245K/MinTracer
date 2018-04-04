@@ -1,7 +1,7 @@
-/********************************************************************/
-/** strutils.h by Alex Koukoulas (C) 2017 All Rights Reserved      **/
-/** File Description:                                              **/
-/********************************************************************/
+/****************************************************************************/
+/** strutils.h by Alex Koukoulas (C) 2017 All Rights Reserved              **/
+/** File Description: interface to a set of string helper helper functions **/
+/****************************************************************************/
 
 #pragma once
 

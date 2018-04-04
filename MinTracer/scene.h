@@ -1,7 +1,8 @@
-/********************************************************************/
-/** scene.h by Alex Koukoulas (C) 2017 All Rights Reserved         **/
-/** File Description:                                              **/
-/********************************************************************/
+/**********************************************************************/
+/** scene.h by Alex Koukoulas (C) 2017 All Rights Reserved           **/
+/** File Description: Interface to the main Scene and scene resident **/
+/** objects                                                          **/
+/**********************************************************************/
 
 #pragma once
 
@@ -60,8 +61,7 @@ struct Material
 };
 
 struct Light
-{
-	// Hack I know
+{	
 	enum LightType
 	{
 		DIR_LIGHT, POINT_LIGHT

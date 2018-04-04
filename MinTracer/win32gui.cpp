@@ -1,7 +1,7 @@
-/**********************************************************************/
-/** win32gui.cpp by Alex Koukoulas (C) 2017 All Rights Reserved      **/
-/** File Description:                                                **/
-/**********************************************************************/
+/***********************************************************************/
+/** win32gui.cpp by Alex Koukoulas (C) 2017 All Rights Reserved       **/
+/** File Description: Implementation of GUI dialog creation functions **/
+/***********************************************************************/
 
 #pragma once
 
@@ -16,8 +16,8 @@
 name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
 processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
-extern uint32 windowWidth;
-extern uint32 windowHeight;
+extern uint32 currentWindowWidth;
+extern uint32 currentWindowHeight;
 
 static uint32 currentLightIndex = 0;
 static uint32 currentSphereIndex = 0;
@@ -654,8 +654,8 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 
 		case WM_SIZE:
 		{			
-			windowWidth = LOWORD(lParam);
-			windowHeight = HIWORD(lParam);
+			currentWindowWidth = LOWORD(lParam);
+			currentWindowHeight = HIWORD(lParam);
 		} break;
 
 		case WM_GETMINMAXINFO:
@@ -698,7 +698,7 @@ static HWND WINAPI CreateEditDialog(HWND hwnd,
 
 	RegisterClass(&wc);
 	
-	const auto x = (GetSystemMetrics(SM_CXSCREEN) - windowWidth) / 2 + windowWidth;
+	const auto x = (GetSystemMetrics(SM_CXSCREEN) - currentWindowWidth) / 2 + currentWindowWidth;
 	const auto y = (GetSystemMetrics(SM_CYSCREEN) - height) / 2;
 
 	auto hwndEditDialog = CreateWindow(

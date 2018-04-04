@@ -1,6 +1,6 @@
 /*********************************************************************/
-/** strutils.cpp by Alex Koukoulas (C) 2017 All Rights Reserved  **/
-/** File Description:                                               **/
+/** strutils.cpp by Alex Koukoulas (C) 2017 All Rights Reserved     **/
+/** File Description: Implementation of string helper functions     **/
 /*********************************************************************/
 
 // Local Headers

@@ -1,7 +1,7 @@
-/**********************************************************************/
-/** scene.cpp by Alex Koukoulas (C) 2017 All Rights Reserved         **/
-/** File Description:                                                **/
-/**********************************************************************/
+/***************************************************************************/
+/** scene.cpp by Alex Koukoulas (C) 2017 All Rights Reserved              **/
+/** File Description: Implementation of Scene and resident object classes **/ 
+/***************************************************************************/
 
 #pragma once
 

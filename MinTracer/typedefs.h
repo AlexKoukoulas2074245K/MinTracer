@@ -1,6 +1,6 @@
 /********************************************************************/
 /** typedefs.h by Alex Koukoulas (C) 2017 All Rights Reserved      **/
-/** File Description:                                              **/
+/** File Description: Type definitions used throughout the project **/
 /********************************************************************/
 
 #pragma once

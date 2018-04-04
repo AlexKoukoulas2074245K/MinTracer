@@ -1,6 +1,6 @@
 /**********************************************************************/
-/** image.cpp by Alex Koukoulas (C) 2017 All Rights Reserved  **/
-/** File Description:                                                **/
+/** image.cpp by Alex Koukoulas (C) 2017 All Rights Reserved         **/
+/** File Description: Implementation of Image class                  **/
 /**********************************************************************/
 
 #pragma once
@@ -85,11 +85,13 @@ f32 Image::scale(const f32 scaleFactor)
 	// Upscaling (Nearest Neighbour)
 	else
 	{		
+		
 		for (auto y = 0; y < resultHeight; ++y)
 		{
 			for (auto x = 0; x < resultWidth; ++x)
 			{								
-				resultData[y][x] = _data[minu(_height - 1, y / roundedScaleFactor)][minu(_width - 1, x / roundedScaleFactor)];
+				resultData[y][x] = _data[minu(_height - 1, y / static_cast<uint32>(roundedScaleFactor))]
+					                    [minu(_width - 1, x / static_cast<uint32>(roundedScaleFactor))];
 			}
 		}
 	}

@@ -1,6 +1,7 @@
 /********************************************************************/
 /** image.h by Alex Koukoulas (C) 2017 All Rights Reserved         **/
-/** File Description:                                              **/
+/** File Description: Interface to the Image class, mostly used to **/
+/** store and save constructed scenes                              **/
 /********************************************************************/
 
 #pragma once

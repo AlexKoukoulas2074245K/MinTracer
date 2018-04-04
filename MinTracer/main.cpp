@@ -1,6 +1,7 @@
 /**********************************************************************/
 /** main.cpp by Alex Koukoulas (C) 2017 All Rights Reserved          **/
-/** File Description:                                                **/
+/** File Description: Main entry point, containing the bulk of the   **/
+/** Ray tracing code                                                 **/
 /**********************************************************************/
 
 #if defined(DEBUG) || defined(_DEBUG)
@@ -27,10 +28,8 @@ static const f32 T_MAX = 100.0f;
 
 using namespace std;
 
-// Window Parameters
-auto windowWidth = 842U;
-auto windowHeight = 683U;
-
+// HitInfo is essentially the info storage Struct 
+// for each Ray being cast
 struct HitInfo
 {
 	bool hit;
@@ -215,8 +214,8 @@ vec3<f32> trace(const Ray& ray)
 	auto currentFragColor = traceForEachLight(currentRay, currentHitInfo);
 	auto reflectionWeight = 1.0f;
 
+	// Compute Reflection
 	const auto reflectionCount = Scene::get().getReflectionCount();
-
 	for (auto i = 0U; i < reflectionCount; ++i)
 	{
 		if (!currentHitInfo.hit) break;
@@ -237,11 +236,11 @@ vec3<f32> trace(const Ray& ray)
 		currentFragColor += (reflectionWeight * fresnelKr) * traceForEachLight(currentRay, currentHitInfo);
 	}
 
+	// Compute Refraction
 	const auto refractionCount = Scene::get().getRefractionCount();
 	auto refractionWeight = 1.0f;
 	currentRay = initialRay;	
 	currentHitInfo = initialHitInfo;
-
 	for (auto i = 0U; i < refractionCount; ++i)
 	{
 		if (!currentHitInfo.hit) break;
@@ -285,37 +284,37 @@ vec3<f32> trace(const Ray& ray)
 	return currentFragColor;
 }
 
-void render(const sint32 renderWidth,
-	        const sint32 renderHeight, 
-	        const sint32 targetWidth, 
-	        const sint32 targetHeight, 
+void render(const sint32 currentRenderWidth,
+	        const sint32 currentRenderHeight, 
+	        const sint32 endGoalWidth, 
+	        const sint32 endGoalHeight, 
 	        const bool& renderStopFlag,
 	        HWND windowHandle)
 {
 	// Initilize ray tracing result
-	Image resultImage(renderWidth, renderHeight);	
+	Image resultImage(currentRenderWidth, currentRenderHeight);	
 
 	// Calculate ray direction parameters	
-	const auto invWidth = 1.0f / renderWidth;
-	const auto invHeight = 1.0f / renderHeight;
+	const auto invWidth = 1.0f / currentRenderWidth;
+	const auto invHeight = 1.0f / currentRenderHeight;
 	const auto fov = PI / 3.0f;
-	const auto aspect = static_cast<f32>(renderWidth) / renderHeight;
+	const auto aspect = static_cast<f32>(currentRenderWidth) / currentRenderHeight;
 	const auto angle = tan(fov * 0.5f);
 
 	const auto threadCount = 2;	
 	const auto renderStart = chrono::steady_clock::now();
 
-	atomic_long rowsRendered = 0;
-	thread workers[threadCount];
-	thread announcer([&rowsRendered, &renderStopFlag, renderHeight]()
+	atomic_long rowsRendered = 0;	
+	// Debug-specific thread, announcing Ray tracing completion percentages
+	thread announcer([&rowsRendered, &renderStopFlag, currentRenderHeight]()
 	{
 #if defined(DEBUG) || defined(_DEBUG)
 		auto currentPercent = 0;
-		while (rowsRendered != renderHeight)
+		while (rowsRendered != currentRenderHeight)
 		{
 			if (renderStopFlag) return;
 
-			const auto completedPerc = static_cast<uint32>(100 * (static_cast<float>(rowsRendered) / renderHeight));
+			const auto completedPerc = static_cast<uint32>(100 * (static_cast<float>(rowsRendered) / currentRenderHeight));
 			if (currentPercent != completedPerc)
 			{
 				currentPercent = completedPerc;
@@ -325,34 +324,36 @@ void render(const sint32 renderWidth,
 #endif
 	});
 
+	// Main Ray-tracing workers
+	thread workers[threadCount];
 	for (auto i = 0; i < threadCount; ++i)
 	{
-		const auto workPerThread = renderHeight / threadCount;
+		// Divide work amongst threads
+		const auto workPerThread = currentRenderHeight / threadCount;
 		auto currentThreadWork = workPerThread;
 
-		if (i == threadCount - 1 && renderHeight % workPerThread != 0)
+		// The last thread also gets any outstanding work if present
+		if (i == threadCount - 1 && currentRenderHeight % workPerThread != 0)
 		{
-			currentThreadWork += renderHeight % workPerThread;
+			currentThreadWork += currentRenderHeight % workPerThread;
 		}
-
-		workers[i] = thread([&resultImage, &rowsRendered, &renderStopFlag, i, workPerThread, currentThreadWork, renderWidth, invWidth, invHeight, angle, aspect]()
+	
+		workers[i] = thread([&resultImage, &rowsRendered, &renderStopFlag, i, workPerThread, currentThreadWork, currentRenderWidth, invWidth, invHeight, angle, aspect]()
 		{
 			for (auto y = i * workPerThread; y < i * workPerThread + currentThreadWork && !renderStopFlag; ++y)
 			{
-				for (auto x = 0; x < renderWidth; ++x)
+				for (auto x = 0; x < currentRenderWidth; ++x)
 				{			
-					if (x == 112 && y == 97)
-					{
-						const auto b = false;
-					}
-
+					// Transform to normalized coordinates
 					const auto xx = (2 * ((x + 0.5f) * invWidth) - 1) * angle * aspect;
 					const auto yy = (1 - 2 * ((y + 0.5f) * invHeight)) * angle;
 					
+					// Compute ray direction
 					vec3<f32> rayDirection(xx, yy, -1.0f);
 					rayDirection = normalize(rayDirection);
-					Ray ray(rayDirection, vec3<f32>());
 
+					// Perform Ray tracing
+					Ray ray(rayDirection, vec3<f32>());
 					resultImage[y][x] = trace(ray);					
 				}
 				rowsRendered++;
@@ -372,31 +373,32 @@ void render(const sint32 renderWidth,
 	if (renderStopFlag) return;	
 
 	// Scale result
-	const auto invRoundedScaleFactor = resultImage.scale((targetWidth + targetHeight) / static_cast<f32>(renderWidth + renderHeight));
+	const auto invRoundedScaleFactor = resultImage.scale((endGoalWidth + endGoalHeight) / static_cast<f32>(currentRenderWidth + currentRenderHeight));
 
 	// Create bitmap array
-	COLORREF *arr = (COLORREF*)calloc(targetWidth * targetHeight, sizeof(COLORREF));
+	COLORREF *arr = (COLORREF*)calloc(endGoalWidth * endGoalHeight, sizeof(COLORREF));
 
-	for (auto y = 0; y < targetHeight; ++y)
+	// Fill bitmap array
+	for (auto y = 0; y < endGoalHeight; ++y)
 	{
 		if (renderStopFlag) return;
 
-		for (auto x = 0; x < targetWidth; ++x)
+		for (auto x = 0; x < endGoalWidth; ++x)
 		{
 			if (renderStopFlag) return;
 
 			const auto colorVec = resultImage[minu(y, resultImage.getHeight() - 1)][minu(x, resultImage.getWidth() - 1)];
-			arr[y * targetWidth + x] = RGB(minf(1.0f, colorVec.z) * 255,
+			arr[y * endGoalWidth + x] = RGB(minf(1.0f, colorVec.z) * 255,
 				                           minf(1.0f, colorVec.y) * 255,
 				                           minf(1.0f, colorVec.x) * 255);
 		}
 	}
 	
 	// Creating and display bitmap
-	HBITMAP map = CreateBitmap(targetWidth, targetHeight, 1, 8 * 4, (void*)arr);
-	HDC src = CreateCompatibleDC(GetDC(windowHandle));
+	auto map = CreateBitmap(endGoalWidth, endGoalHeight, 1, 8 * 4, (void*)arr);
+	auto src = CreateCompatibleDC(GetDC(windowHandle));
 	SelectObject(src, map); 
-	BitBlt(GetDC(windowHandle), 0, 0, targetWidth, targetHeight, src, 0, 0, SRCCOPY);
+	BitBlt(GetDC(windowHandle), 0, 0, endGoalWidth, endGoalHeight, src, 0, 0, SRCCOPY);
 	DeleteDC(src); // Deleting temp HDC
 	free(arr);
 
@@ -408,25 +410,39 @@ void render(const sint32 renderWidth,
 	cout << "Finished writing output to file.. " << endl;
 }
 
-int CALLBACK WinMain(HINSTANCE instance, HINSTANCE __, LPSTR ___, int ____)
+
+// Window Parameters. These are global in order to be modified from the win32gui functions.
+// Unfortunately passing custom win32 messages was such a pain, I had to revert 
+// back to using externs :(
+auto currentWindowWidth = 842U;
+auto currentWindowHeight = 683U;
+
+int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmd, int ncmd)
 {			
 	// Initialize Scene	
 	auto renderStopFlag = false;
 
-	// Constant Render Pamaters
-	auto prevWindowWidth = windowWidth;
-	auto prevWindowHeight = windowHeight;
-	auto targetWidth = prevWindowWidth * 4;
-	auto targetHeight = prevWindowHeight * 4;
-	auto initRenderWidth = prevWindowWidth / 8;
-	auto initRenderHeight = prevWindowHeight / 8;
+	// Render Size Parameters. The apparent clutter with respect to these, is 
+	// due to the many operations that could trigger re-rendering, such as 
+	// window resizing, object editing, resolution upgrading etc..
+	auto prevWindowWidth = currentWindowWidth;
+	auto prevWindowHeight = currentWindowHeight;
+
+	// This is the final end-goal resolution, at which point,
+	// the program will stop trying to increase image quality
+	auto endGoalWidth = prevWindowWidth * 4;
+	auto endGoalHeight = prevWindowHeight * 4;
+	
+	// This is the initial resolution that will be rendered
+	auto startingRenderWidth = prevWindowWidth / 8;
+	auto startingRenderHeight = prevWindowHeight / 8;
 
 	// Initialize Window
 	auto windowHandle = win32::CreateMainWindow(instance, prevWindowWidth, prevWindowHeight, "MinTracer");	
 
 	// Render Target Parameters
-	auto renderWidth = initRenderWidth;
-	auto renderHeight = initRenderHeight;	
+	auto currentRenderWidth = startingRenderWidth;
+	auto currentRenderHeight = startingRenderHeight;	
 	auto rendering = false;
 	auto saveScene = false;
 	auto openScene = false;
@@ -436,21 +452,29 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE __, LPSTR ___, int ____)
 	{
 		switch(msg.message)
 		{		
+			// InvalidateRect has been called, hence sending a WM_PAINT message, 
+			// due to resizing, resolution advancements, or other GUI related actions.			
 			case WM_PAINT:
-			{		
-				if (!rendering && renderWidth <= targetWidth)
-				{
+			{						
+				if (!rendering && currentRenderWidth <= endGoalWidth)
+				{ 
+					// The rendering flag is used because we are starting rendering, so if WM_PAINT is sent again for some reason, 
+					// we don't restart the process
 					rendering = true;
 					renderStopFlag = false;
 
-					thread masterRayTraceThread([&rendering, &renderWidth, &renderHeight, prevWindowHeight, prevWindowWidth, targetWidth, targetHeight, &renderStopFlag, windowHandle]()
+					// Thread responsible for spawning workers and performing Ray Tracing
+					thread masterRayTraceThread([&rendering, &currentRenderWidth, &currentRenderHeight, prevWindowHeight, prevWindowWidth, endGoalWidth, endGoalHeight, &renderStopFlag, windowHandle]()
 					{						
-						render(renderWidth, renderHeight, prevWindowWidth, prevWindowHeight, renderStopFlag, windowHandle);
-						SetWindowText(windowHandle, ("MinTracer -- Current resolution: " + to_string(renderWidth) + " x " + to_string(renderHeight)).c_str());
-						if (renderWidth <= targetWidth)
+						render(currentRenderWidth, currentRenderHeight, prevWindowWidth, prevWindowHeight, renderStopFlag, windowHandle);
+						SetWindowText(windowHandle, ("MinTracer -- Current resolution: " + to_string(currentRenderWidth) + " x " + to_string(currentRenderHeight)).c_str());
+						
+						// Ray Tracing completed for current resolution, 
+						// double the render resolution for the next rendering
+						if (currentRenderWidth <= endGoalWidth)
 						{
-							renderWidth *= 2;
-							renderHeight *= 2;						
+							currentRenderWidth *= 2;
+							currentRenderHeight *= 2;						
 						}
 						rendering = false;
 
@@ -460,8 +484,8 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE __, LPSTR ___, int ____)
 				}			
 			} break;
 
-			// A menu item has been selected
-			// (be it a main or submenu)
+			// A menu item has been selected (be it a main or submenu), 
+			// hence the response is different based on the GUI item's functionality
 			case WM_COMMAND:
 			{
 				switch (LOWORD(msg.wParam))
@@ -490,11 +514,13 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE __, LPSTR ___, int ____)
 					case win32::GUID_RESTART_RENDER:
 					{
 						renderStopFlag = true;
-						renderWidth = initRenderWidth; 
-						renderHeight = initRenderHeight; 
+						currentRenderWidth = startingRenderWidth; 
+						currentRenderHeight = startingRenderHeight; 
 					} break;
 				}
 
+				// Might also need to create the dynamic gui menus for each 
+				// object in the scene, based on the object count
 				const auto planeCount = Scene::get().getPlaneCount();
 				for (auto i = 0U; i < planeCount; ++i)
 				{
@@ -529,8 +555,8 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE __, LPSTR ___, int ____)
 			case WM_HSCROLL:
 			{				
 				renderStopFlag = true;
-				renderWidth = initRenderWidth;
-				renderHeight = initRenderHeight;
+				currentRenderWidth = startingRenderWidth;
+				currentRenderHeight = startingRenderHeight;
 			} break;
 		}
 
@@ -541,26 +567,29 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE __, LPSTR ___, int ____)
 			DispatchMessage(&msg);
 		}
 
-		if (prevWindowHeight != windowHeight || prevWindowWidth != windowWidth)
+		// Handle window resizing (currentWindowWidth/Height not matching previously known dimensions)
+		if (prevWindowHeight != currentWindowHeight || prevWindowWidth != currentWindowWidth)
 		{
-			prevWindowWidth = windowWidth;
-			prevWindowHeight = windowHeight;
+			prevWindowWidth = currentWindowWidth;
+			prevWindowHeight = currentWindowHeight;
 
-			targetWidth = prevWindowWidth * 4;
-			targetHeight = prevWindowHeight * 4;
-			initRenderWidth = prevWindowWidth / 8;
-			initRenderHeight = prevWindowHeight / 8;
+			endGoalWidth = prevWindowWidth * 4;
+			endGoalHeight = prevWindowHeight * 4;
+			startingRenderWidth = prevWindowWidth / 8;
+			startingRenderHeight = prevWindowHeight / 8;
 
 			renderStopFlag = true;
-			renderWidth = initRenderWidth;
-			renderHeight = initRenderHeight;
+			currentRenderWidth = startingRenderWidth;
+			currentRenderHeight = startingRenderHeight;
 		}
 
-		if (renderWidth <= targetWidth && !rendering)
+		// Force repaint when upgrading resolution
+		if (currentRenderWidth <= endGoalWidth && !rendering)
 		{
 			InvalidateRect(windowHandle, NULL, TRUE);
 		}
 
+		// Async scene saving
 		if (saveScene)
 		{
 			win32::CreateIODialog(windowHandle, instance, win32::IO_DIALOG_TYPE::SAVE_AS, [](const win32::IO_DIALOG_RESULT_TYPE resultType)
@@ -582,17 +611,18 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE __, LPSTR ___, int ____)
 			saveScene = false;
 		}
 
+		// Async scene loading
 		if (openScene)
 		{
-			win32::CreateIODialog(windowHandle, instance, win32::IO_DIALOG_TYPE::OPEN, [&renderWidth, &renderHeight, &renderStopFlag, &initRenderWidth, &initRenderHeight](const win32::IO_DIALOG_RESULT_TYPE resultType)
+			win32::CreateIODialog(windowHandle, instance, win32::IO_DIALOG_TYPE::OPEN, [&currentRenderWidth, &currentRenderHeight, &renderStopFlag, &startingRenderWidth, &startingRenderHeight](const win32::IO_DIALOG_RESULT_TYPE resultType)
 			{
 				switch (resultType)
 				{
 					case win32::SUCCESS:
 					{
 						renderStopFlag = true;
-						renderWidth = initRenderWidth;
-						renderHeight = initRenderHeight;
+						currentRenderWidth = startingRenderWidth;
+						currentRenderHeight = startingRenderHeight;
 					} break;
 
 					case win32::FAILURE:

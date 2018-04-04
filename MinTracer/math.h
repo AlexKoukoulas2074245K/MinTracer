@@ -1,6 +1,6 @@
 /********************************************************************/
 /** math.h by Alex Koukoulas (C) 2017 All Rights Reserved          **/
-/** File Description:                                              **/
+/** File Description: Some helper math functions                   **/
 /********************************************************************/
 
 #pragma once

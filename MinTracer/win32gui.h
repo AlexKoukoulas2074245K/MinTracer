@@ -1,6 +1,8 @@
 /********************************************************************/
-/** win32gui.h by Alex Koukoulas (C) 2017 All Rights Reserved  **/
-/** File Description:                                              **/
+/** win32gui.h by Alex Koukoulas (C) 2017 All Rights Reserved      **/
+/** File Description: A set of win32 GUI dialog creation functions **/
+/** with their respective implementation in win32gui.cpp. Win32    **/
+/** GUI development is not fun :(                                  **/
 /********************************************************************/
 
 #pragma once
