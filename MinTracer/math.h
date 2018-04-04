@@ -22,28 +22,28 @@ template<typename T>
 class vec3
 {
 public:
-	T x, y, z;
-	vec3() : x(T(0)), y(T(0)), z(T(0)) {}
-	vec3(T xx) : x(xx), y(xx), z(xx) {}
-	vec3(T xx, T yy, T zz) : x(xx), y(yy), z(zz) {}
-	vec3(const std::string& desc) 
-	{
-		const auto vecDesc = strutils::split(desc, ','); 
-		x = std::stof(vecDesc[0]);
-		y = std::stof(vecDesc[1]);
-		z = std::stof(vecDesc[2]); 
-	}
-	
-	vec3<T>& operator -= (const vec3<T>& v) { x -= v.x, y -= v.y; z -= v.z; return *this; }
-	vec3<T>& operator += (const vec3<T>& v) { x += v.x; y += v.y; z += v.z; return *this; }
-	vec3<T>& operator *= (const vec3<T>& v) { x *= v.x; y *= v.y; z *= v.z; return *this; }
-	vec3<T>& operator /= (const vec3<T>& v) { x /= v.x; y /= v.y; z /= v.z; return *this; }
-	bool operator == (const vec3<T>& v) { return fabsf(x - v.x) < 1e-6 && fabsf(y - v.y) < 1e-6 && fabsf(z - v.z) < 1e-6; }
-	bool operator != (const vec3<T>& v) { return !(*this == v); }
-	vec3<T>& operator *= (const T& scalar) { x *= scalar; y *= scalar; z *= scalar; return *this; }
-	vec3<T>& operator /= (const T& scalar) { x /= scalar; y /= scalar; z /= scalar; return *this; }
+    T x, y, z;
+    vec3() : x(T(0)), y(T(0)), z(T(0)) {}
+    vec3(T xx) : x(xx), y(xx), z(xx) {}
+    vec3(T xx, T yy, T zz) : x(xx), y(yy), z(zz) {}
+    vec3(const std::string& desc) 
+    {
+        const auto vecDesc = strutils::split(desc, ','); 
+        x = std::stof(vecDesc[0]);
+        y = std::stof(vecDesc[1]);
+        z = std::stof(vecDesc[2]); 
+    }
+    
+    vec3<T>& operator -= (const vec3<T>& v) { x -= v.x, y -= v.y; z -= v.z; return *this; }
+    vec3<T>& operator += (const vec3<T>& v) { x += v.x; y += v.y; z += v.z; return *this; }
+    vec3<T>& operator *= (const vec3<T>& v) { x *= v.x; y *= v.y; z *= v.z; return *this; }
+    vec3<T>& operator /= (const vec3<T>& v) { x /= v.x; y /= v.y; z /= v.z; return *this; }
+    bool operator == (const vec3<T>& v) { return fabsf(x - v.x) < 1e-6 && fabsf(y - v.y) < 1e-6 && fabsf(z - v.z) < 1e-6; }
+    bool operator != (const vec3<T>& v) { return !(*this == v); }
+    vec3<T>& operator *= (const T& scalar) { x *= scalar; y *= scalar; z *= scalar; return *this; }
+    vec3<T>& operator /= (const T& scalar) { x /= scalar; y /= scalar; z /= scalar; return *this; }
 
-	std::string toString() const { std::stringstream result; result << x << "," << y << "," << z; return result.str(); }
+    std::string toString() const { std::stringstream result; result << x << "," << y << "," << z; return result.str(); }
 };
 
 template<typename T>
@@ -88,9 +88,9 @@ inline vec3<T> cross(const vec3<T>& a, const vec3<T>& b) { return vec3<T>(y * v.
 template<typename T>
 inline uint32 vec3toARGB(const vec3<T>& vec)
 {
-	return 0xFF000000 |
-		uint32(minf(1.0f, vec.x) * 255) << 16 |
-		uint32(minf(1.0f, vec.y) * 255) << 8 |
-		uint32(minf(1.0f, vec.z) * 255);
+    return 0xFF000000 |
+        uint32(minf(1.0f, vec.x) * 255) << 16 |
+        uint32(minf(1.0f, vec.y) * 255) << 8 |
+        uint32(minf(1.0f, vec.z) * 255);
 }
 
