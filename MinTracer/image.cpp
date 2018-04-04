@@ -55,18 +55,20 @@ void Image::resize(const sint32 width, const sint32 height)
 f32 Image::scale(const f32 scaleFactor)
 {	
 	const auto roundedScaleFactor = scaleFactor > 1.0f ? roundf(scaleFactor) : (scaleFactor > 0.4f ? 0.5f : 0.25f);
-
+	
+	// Determine the target dimensions of the scaled image, be it upscaled or downscaleed
 	std::vector<std::vector<vec3<f32>>> resultData;
 	const auto resultWidth = static_cast<sint32>(_width * roundedScaleFactor);
 	const auto resultHeight = static_cast<sint32>(_height * roundedScaleFactor);
 	resultData.resize(resultHeight, std::vector<vec3<f32>>(resultWidth, 0.0f));	
+	
 	const auto invScaleFactor = 1.0f / roundedScaleFactor;
 
 	// Downscaling (2x2 averaging)
 	if (invScaleFactor > 1.0f)
 	{
 		const auto step = lroundf(invScaleFactor);
-		const auto weight = 1.0f / lroundf(static_cast<float>(powl(step, 2)));
+		const auto weight = 1.0f / lroundf(static_cast<f32>(powl(step, 2)));
 
 		for (auto y = step - 1; y < _height; y += step)
 		{

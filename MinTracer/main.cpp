@@ -294,18 +294,19 @@ void render(const sint32 currentRenderWidth,
 	// Initilize ray tracing result
 	Image resultImage(currentRenderWidth, currentRenderHeight);	
 
-	// Calculate ray direction parameters	
+	// Compute ray direction parameters	
 	const auto invWidth = 1.0f / currentRenderWidth;
 	const auto invHeight = 1.0f / currentRenderHeight;
-	const auto fov = PI / 3.0f;
+	const auto fov = PI / 3.0f; 
 	const auto aspect = static_cast<f32>(currentRenderWidth) / currentRenderHeight;
 	const auto angle = tan(fov * 0.5f);
 
+	// Could probably parameterize worker count
 	const auto threadCount = 2;	
 	const auto renderStart = chrono::steady_clock::now();
-
-	atomic_long rowsRendered = 0;	
+	
 	// Debug-specific thread, announcing Ray tracing completion percentages
+	atomic_long rowsRendered = 0;
 	thread announcer([&rowsRendered, &renderStopFlag, currentRenderHeight]()
 	{
 #if defined(DEBUG) || defined(_DEBUG)
@@ -314,7 +315,7 @@ void render(const sint32 currentRenderWidth,
 		{
 			if (renderStopFlag) return;
 
-			const auto completedPerc = static_cast<uint32>(100 * (static_cast<float>(rowsRendered) / currentRenderHeight));
+			const auto completedPerc = static_cast<uint32>(100 * (static_cast<f32>(rowsRendered) / currentRenderHeight));
 			if (currentPercent != completedPerc)
 			{
 				currentPercent = completedPerc;
@@ -376,7 +377,7 @@ void render(const sint32 currentRenderWidth,
 	const auto invRoundedScaleFactor = resultImage.scale((endGoalWidth + endGoalHeight) / static_cast<f32>(currentRenderWidth + currentRenderHeight));
 
 	// Create bitmap array
-	COLORREF *arr = (COLORREF*)calloc(endGoalWidth * endGoalHeight, sizeof(COLORREF));
+	auto* arr = (COLORREF*)calloc(endGoalWidth * endGoalHeight, sizeof(COLORREF));
 
 	// Fill bitmap array
 	for (auto y = 0; y < endGoalHeight; ++y)
